@@ -1,0 +1,73 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: bff-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: ms-productos
+          uri: ${MS_PRODUCTOS_URL:http://localhost:8081}
+          predicates:
+            - Path=/api/productos/**
+        - id: ms-inventario
+          uri: ${MS_INVENTARIO_URL:http://localhost:8082}
+          predicates:
+            - Path=/api/inventario/**
+        - id: ms-pedidos
+          uri: ${MS_PEDIDOS_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/pedidos/**
+        - id: ms-clientes
+          uri: ${MS_CLIENTES_URL:http://localhost:8084}
+          predicates:
+            - Path=/api/clientes/**
+        - id: ms-pagos
+          uri: ${MS_PAGOS_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/pagos/**
+        - id: ms-empleados
+          uri: ${MS_EMPLEADOS_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/empleados/**
+        - id: ms-proveedores
+          uri: ${MS_PROVEEDORES_URL:http://localhost:8087}
+          predicates:
+            - Path=/api/proveedores/**
+        - id: ms-reportes
+          uri: ${MS_REPORTES_URL:http://localhost:8088}
+          predicates:
+            - Path=/api/reportes/**
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - ${FRONTEND_ORIGIN:http://localhost:4200}
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${AZURE_ISSUER_URI:https://login.microsoftonline.com/<TENANT_ID>/v2.0}
+          audiences:
+            - ${AZURE_AUDIENCE:api://cafeteria-backend}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  security:
+    enabled: true

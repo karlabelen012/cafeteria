@@ -1,0 +1,34 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Variables de entorno / secretos (NUNCA subir esto)
+.env
+*.env.local
+application-local.properties
+application-secrets.properties
+
+# Logs
+*.log
+
+# Compilados
+*.class
+
+# Base de datos H2 local (modo noauth, se regenera sola al correr la app)
+data/
+*.mv.db
+*.trace.db

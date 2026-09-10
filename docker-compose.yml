@@ -1,0 +1,247 @@
+# Levanta el stack completo de CafeGestion360 con un solo comando:
+#   docker compose up --build
+#
+# Por defecto todo corre en modo "noauth" (igual que start-noauth.bat), o
+# sea SIN Azure Entra ID configurado: el JWT no se valida y cada
+# microservicio usa su propia base H2 embebida (persistida en un volumen).
+# Es el modo mas rapido para ver el sistema funcionando end-to-end.
+#
+# Para probar con Azure Entra ID real (JWT validado) y Postgres:
+#   1. En cada servicio ms-* y bff-gateway, cambia SPRING_PROFILES_ACTIVE
+#      por otro valor (o elimina la variable) y agrega AZURE_ISSUER_URI /
+#      AZURE_AUDIENCE con tus datos reales.
+#   2. En el frontend, pasa VITE_AUTH_DISABLED=false y tus
+#      VITE_AZURE_CLIENT_ID / VITE_AZURE_TENANT_ID reales como build-args.
+#   3. Postgres (servicio "postgres") ya queda disponible en el mismo
+#      docker-compose para ese caso.
+version: "3.8"
+
+x-backend-common: &backend-common
+  build:
+    context: ./cafeteria-backend/cafeteria-backend
+  environment:
+    SPRING_PROFILES_ACTIVE: noauth
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cafeteria-postgres
+    environment:
+      POSTGRES_DB: cafeteria
+      POSTGRES_USER: cafeteria
+      POSTGRES_PASSWORD: cafeteria
+    ports:
+      - "5432:5432"
+    volumes:
+      - cafeteria_pgdata:/var/lib/postgresql/data
+      - ./cafeteria-backend/cafeteria-backend/init-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cafeteria"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ms-productos:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-productos
+    container_name: ms-productos
+    ports:
+      - "8081:8081"
+    volumes:
+      - ms_productos_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ms-inventario:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-inventario
+    container_name: ms-inventario
+    ports:
+      - "8082:8082"
+    volumes:
+      - ms_inventario_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ms-pedidos:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-pedidos
+    container_name: ms-pedidos
+    ports:
+      - "8083:8083"
+    volumes:
+      - ms_pedidos_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ms-clientes:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-clientes
+    container_name: ms-clientes
+    ports:
+      - "8084:8084"
+    volumes:
+      - ms_clientes_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ms-pagos:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-pagos
+    container_name: ms-pagos
+    ports:
+      - "8085:8085"
+    volumes:
+      - ms_pagos_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ms-empleados:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-empleados
+    container_name: ms-empleados
+    ports:
+      - "8086:8086"
+    volumes:
+      - ms_empleados_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8086/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ms-proveedores:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-proveedores
+    container_name: ms-proveedores
+    ports:
+      - "8087:8087"
+    volumes:
+      - ms_proveedores_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8087/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ms-reportes:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-reportes
+    container_name: ms-reportes
+    ports:
+      - "8088:8088"
+    volumes:
+      - ms_reportes_data:/app/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8088/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  bff-gateway:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: bff-gateway
+    container_name: bff-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: noauth
+      FRONTEND_ORIGIN: http://localhost:4200
+      MS_PRODUCTOS_URL: http://ms-productos:8081
+      MS_INVENTARIO_URL: http://ms-inventario:8082
+      MS_PEDIDOS_URL: http://ms-pedidos:8083
+      MS_CLIENTES_URL: http://ms-clientes:8084
+      MS_PAGOS_URL: http://ms-pagos:8085
+      MS_EMPLEADOS_URL: http://ms-empleados:8086
+      MS_PROVEEDORES_URL: http://ms-proveedores:8087
+      MS_REPORTES_URL: http://ms-reportes:8088
+    depends_on:
+      ms-productos:
+        condition: service_healthy
+      ms-inventario:
+        condition: service_healthy
+      ms-pedidos:
+        condition: service_healthy
+      ms-clientes:
+        condition: service_healthy
+      ms-pagos:
+        condition: service_healthy
+      ms-empleados:
+        condition: service_healthy
+      ms-proveedores:
+        condition: service_healthy
+      ms-reportes:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./cafeteria-frontend/cafeteria-frontend
+      args:
+        VITE_AUTH_DISABLED: "true"
+        VITE_API_BASE_URL: http://localhost:8080/api
+    container_name: cafeteria-frontend
+    ports:
+      - "4200:4200"
+    depends_on:
+      - bff-gateway
+
+volumes:
+  cafeteria_pgdata:
+  ms_productos_data:
+  ms_inventario_data:
+  ms_pedidos_data:
+  ms_clientes_data:
+  ms_pagos_data:
+  ms_empleados_data:
+  ms_proveedores_data:
+  ms_reportes_data:
