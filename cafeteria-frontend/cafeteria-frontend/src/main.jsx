@@ -1,36 +1,59 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import { PublicClientApplication, EventType } from '@azure/msal-browser';
-import { MsalProvider } from '@azure/msal-react';
-import { msalConfig } from './auth/authConfig';
 import { CartProvider } from './context/CartContext.jsx';
 import App from './App.jsx';
 import './index.css';
 
-// Una sola instancia de MSAL para toda la app (recomendado por Microsoft).
-const msalInstance = new PublicClientApplication(msalConfig);
+const authDisabled = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
-// Si ya hay una cuenta logueada (ej. tras volver del redirect de login),
-// la marcamos como cuenta activa para que MsalProvider sepa cual usar.
-if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
-  msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
+async function bootstrap() {
+  let AppTree;
+
+  if (authDisabled) {
+    // Modo noauth: MSAL nunca se instancia (evita el error crypto_nonexistent en HTTP).
+    AppTree = (
+      <React.StrictMode>
+        <CartProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </CartProvider>
+      </React.StrictMode>
+    );
+  } else {
+    // Modo con Azure Entra ID: MSAL se inicializa solo cuando hay HTTPS disponible.
+    const { PublicClientApplication, EventType } = await import('@azure/msal-browser');
+    const { MsalProvider } = await import('@azure/msal-react');
+    const { msalConfig } = await import('./auth/authConfig');
+
+    const msalInstance = new PublicClientApplication(msalConfig);
+
+    if (!msalInstance.getActiveAccount() && msalInstance.getAllAccounts().length > 0) {
+      msalInstance.setActiveAccount(msalInstance.getAllAccounts()[0]);
+    }
+
+    msalInstance.addEventCallback((event) => {
+      if (event.eventType === EventType.LOGIN_SUCCESS && event.payload?.account) {
+        msalInstance.setActiveAccount(event.payload.account);
+      }
+    });
+
+    AppTree = (
+      <React.StrictMode>
+        <MsalProvider instance={msalInstance}>
+          <CartProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </CartProvider>
+        </MsalProvider>
+      </React.StrictMode>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(AppTree);
 }
 
-msalInstance.addEventCallback((event) => {
-  if (event.eventType === EventType.LOGIN_SUCCESS && event.payload?.account) {
-    msalInstance.setActiveAccount(event.payload.account);
-  }
-});
+bootstrap();
 
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <MsalProvider instance={msalInstance}>
-      <CartProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </CartProvider>
-    </MsalProvider>
-  </React.StrictMode>,
-);
