@@ -8,6 +8,6 @@ export default defineConfig({
   },
   preview: {
     port: 4200,
-    allowedHosts: 'all',
+    allowedHosts: true,
   },
 });
