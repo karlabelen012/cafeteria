@@ -196,7 +196,7 @@ services:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: noauth
-      FRONTEND_ORIGIN: http://localhost:4200
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:4200}
       MS_PRODUCTOS_URL: http://ms-productos:8081
       MS_INVENTARIO_URL: http://ms-inventario:8082
       MS_PEDIDOS_URL: http://ms-pedidos:8083
@@ -227,8 +227,8 @@ services:
     build:
       context: ./cafeteria-frontend/cafeteria-frontend
       args:
-        VITE_AUTH_DISABLED: "true"
-        VITE_API_BASE_URL: http://localhost:8080/api
+        VITE_AUTH_DISABLED: ${VITE_AUTH_DISABLED:-true}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
     container_name: cafeteria-frontend
     ports:
       - "4200:4200"
