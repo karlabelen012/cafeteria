@@ -14,7 +14,7 @@ x-backend-common: &backend-common
   build:
     context: ./cafeteria-backend/cafeteria-backend
   environment:
-    SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-noauth}
+    SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE-noauth}
     DB_URL: jdbc:postgresql://postgres:5432/cafeteria
     DB_USER: cafeteria
     DB_PASSWORD: cafeteria
@@ -218,7 +218,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-noauth}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE-noauth}
       AZURE_ISSUER_URI: ${AZURE_ISSUER_URI:-https://login.microsoftonline.com/<TENANT_ID>/v2.0}
       AZURE_AUDIENCE: ${AZURE_AUDIENCE:-api://cafeteria-backend}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:4200}

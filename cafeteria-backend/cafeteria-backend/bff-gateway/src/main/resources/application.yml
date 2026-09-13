@@ -39,20 +39,10 @@ spring:
           uri: ${MS_REPORTES_URL:http://localhost:8088}
           predicates:
             - Path=/api/reportes/**
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOriginPatterns:
-              - ${FRONTEND_ORIGIN:http://localhost:4200}
-            allowedMethods:
-              - GET
-              - POST
-              - PUT
-              - DELETE
-              - OPTIONS
-            allowedHeaders:
-              - "*"
-            allowCredentials: true
+      # CORS se configura en CorsConfig.java, dentro de la cadena de Spring
+      # Security (ver SecurityConfig / NoAuthSecurityConfig) en vez de aqui:
+      # un "globalcors" separado no alcanza a agregar los headers cuando
+      # Security corta la respuesta con 401/403 antes de llegar a el.
 
   security:
     oauth2:

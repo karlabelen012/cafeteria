@@ -27,11 +27,13 @@ function useApiClientMsal() {
 
   async function getToken() {
     const account = accounts[0];
-    if (!account) {
-      throw new Error('No hay una cuenta autenticada. Inicia sesion primero.');
-    }
+    // Sin sesion: se llama sin token (rutas publicas como el menu de la
+    // tienda). Las rutas que si exigen JWT devuelven 401 igual, y el UI
+    // (ProtectedRoute) ya evita que un usuario sin sesion llegue ahi.
+    if (!account) return null;
     try {
       const response = await instance.acquireTokenSilent({ ...loginRequest, account });
+      console.log('TOKEN OBTENIDO:', response.accessToken ? response.accessToken.substring(0, 50) + '...' : 'SIN TOKEN');
       return response.accessToken;
     } catch (error) {
       if (error instanceof InteractionRequiredAuthError) {
@@ -44,7 +46,10 @@ function useApiClientMsal() {
   async function callApi(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     const token = await getToken();
-    headers.Authorization = `Bearer ${token}`;
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    console.log('HEADERS ENVIADOS:', headers);
     const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers });
     if (!response.ok) {
       throw new Error(`Error ${response.status} llamando a ${path}`);
