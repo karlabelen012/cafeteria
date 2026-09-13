@@ -1,0 +1,5 @@
+# Los scripts de shell deben mantener LF siempre, incluso en checkouts de
+# Windows, o el shebang (#!/bin/sh) se rompe dentro de los contenedores
+# Linux (Docker build falla con "./mvnw: not found").
+*.sh text eol=lf
+mvnw text eol=lf

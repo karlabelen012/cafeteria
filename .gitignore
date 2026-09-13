@@ -1,0 +1,11 @@
+# Variables de entorno reales (nunca subir credenciales / IDs de Azure)
+.env
+.env.local
+.env.*.local
+
+# Sistema operativo / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.iml

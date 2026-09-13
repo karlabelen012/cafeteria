@@ -1,26 +1,25 @@
 # Levanta el stack completo de CafeGestion360 con un solo comando:
-#   docker compose up --build
+#   docker compose up --build -d
 #
-# Por defecto todo corre en modo "noauth" (igual que start-noauth.bat), o
-# sea SIN Azure Entra ID configurado: el JWT no se valida y cada
-# microservicio usa su propia base H2 embebida (persistida en un volumen).
-# Es el modo mas rapido para ver el sistema funcionando end-to-end.
-#
-# Para probar con Azure Entra ID real (JWT validado) y Postgres:
-#   1. En cada servicio ms-* y bff-gateway, cambia SPRING_PROFILES_ACTIVE
-#      por otro valor (o elimina la variable) y agrega AZURE_ISSUER_URI /
-#      AZURE_AUDIENCE con tus datos reales.
-#   2. En el frontend, pasa VITE_AUTH_DISABLED=false y tus
-#      VITE_AZURE_CLIENT_ID / VITE_AZURE_TENANT_ID reales como build-args.
-#   3. Postgres (servicio "postgres") ya queda disponible en el mismo
-#      docker-compose para ese caso.
+# Modo activo = lo que digas en tu .env local (nunca subido a git, ver
+# .env.example en la raiz):
+#   - SPRING_PROFILES_ACTIVE=noauth  -> sin Azure, H2 embebida (demo rapida).
+#   - SPRING_PROFILES_ACTIVE= (vacio)-> valida JWT de Azure Entra ID real y
+#     usa Postgres (servicio "postgres" de este mismo compose). Requiere
+#     completar AZURE_ISSUER_URI / AZURE_AUDIENCE / VITE_AZURE_* en tu .env
+#     con los datos reales de tus App Registrations.
 version: "3.8"
 
 x-backend-common: &backend-common
   build:
     context: ./cafeteria-backend/cafeteria-backend
   environment:
-    SPRING_PROFILES_ACTIVE: noauth
+    SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-noauth}
+    DB_URL: jdbc:postgresql://postgres:5432/cafeteria
+    DB_USER: cafeteria
+    DB_PASSWORD: cafeteria
+    AZURE_ISSUER_URI: ${AZURE_ISSUER_URI:-https://login.microsoftonline.com/<TENANT_ID>/v2.0}
+    AZURE_AUDIENCE: ${AZURE_AUDIENCE:-api://cafeteria-backend}
 
 services:
   postgres:
@@ -52,6 +51,9 @@ services:
       - "8081:8081"
     volumes:
       - ms_productos_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
       interval: 10s
@@ -70,6 +72,9 @@ services:
       - "8082:8082"
     volumes:
       - ms_inventario_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
       interval: 10s
@@ -88,6 +93,9 @@ services:
       - "8083:8083"
     volumes:
       - ms_pedidos_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
       interval: 10s
@@ -106,6 +114,9 @@ services:
       - "8084:8084"
     volumes:
       - ms_clientes_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
       interval: 10s
@@ -124,6 +135,9 @@ services:
       - "8085:8085"
     volumes:
       - ms_pagos_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
       interval: 10s
@@ -142,6 +156,9 @@ services:
       - "8086:8086"
     volumes:
       - ms_empleados_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8086/actuator/health"]
       interval: 10s
@@ -160,6 +177,9 @@ services:
       - "8087:8087"
     volumes:
       - ms_proveedores_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8087/actuator/health"]
       interval: 10s
@@ -178,6 +198,9 @@ services:
       - "8088:8088"
     volumes:
       - ms_reportes_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8088/actuator/health"]
       interval: 10s
@@ -195,7 +218,9 @@ services:
     ports:
       - "8080:8080"
     environment:
-      SPRING_PROFILES_ACTIVE: noauth
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-noauth}
+      AZURE_ISSUER_URI: ${AZURE_ISSUER_URI:-https://login.microsoftonline.com/<TENANT_ID>/v2.0}
+      AZURE_AUDIENCE: ${AZURE_AUDIENCE:-api://cafeteria-backend}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:4200}
       MS_PRODUCTOS_URL: http://ms-productos:8081
       MS_INVENTARIO_URL: http://ms-inventario:8082
@@ -229,6 +254,10 @@ services:
       args:
         VITE_AUTH_DISABLED: ${VITE_AUTH_DISABLED:-true}
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080/api}
+        VITE_AZURE_CLIENT_ID: ${VITE_AZURE_CLIENT_ID:-placeholder}
+        VITE_AZURE_TENANT_ID: ${VITE_AZURE_TENANT_ID:-placeholder}
+        VITE_AZURE_REDIRECT_URI: ${VITE_AZURE_REDIRECT_URI:-http://localhost:4200}
+        VITE_API_SCOPES: ${VITE_API_SCOPES:-api://cafeteria-backend/pedidos.read,api://cafeteria-backend/pedidos.write}
     container_name: cafeteria-frontend
     ports:
       - "4200:4200"
