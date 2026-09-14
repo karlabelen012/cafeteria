@@ -14,20 +14,67 @@ Gateway) → 8 microservicios Spring Boot → PostgreSQL.
 
 ## Qué tiene el proyecto (estado actual)
 
-**Módulos de negocio** (uno por microservicio, todos Spring Boot + JPA, cada
-uno con su propio esquema en la misma base Postgres):
+### Stack tecnológico y cómo se integra
 
-| Microservicio | Puerto | Qué gestiona |
-|---|---|---|
-| `ms-productos` | 8081 | Menú (catálogo de productos) — el único con lectura pública |
-| `ms-inventario` | 8082 | Insumos y stock |
-| `ms-pedidos` | 8083 | Pedidos y sus ítems |
-| `ms-clientes` | 8084 | Clientes registrados |
-| `ms-pagos` | 8085 | Pagos |
-| `ms-empleados` | 8086 | Empleados |
-| `ms-proveedores` | 8087 | Proveedores |
-| `ms-reportes` | 8088 | Reportes (venta diaria, etc.) |
-| `bff-gateway` | 8080 | Spring Cloud Gateway: única puerta de entrada del frontend, enruta a los 8 anteriores |
+- **Backend:** Java 17 + Spring Boot 3.3.4, organizado como **proyecto Maven
+  multi-módulo** (un `pom.xml` padre en `cafeteria-backend/cafeteria-backend`
+  con Maven Wrapper `mvnw`, y 9 módulos hijos: 8 microservicios +
+  `bff-gateway`, cada uno con su propio `pom.xml`).
+- **`bff-gateway`:** **Spring Cloud Gateway 2023.0.3** (reactivo, sobre
+  WebFlux/Netty, no Spring MVC). Enruta por `Path` predicate a cada
+  microservicio (definido en `spring.cloud.gateway.routes` dentro de su
+  `application.yml`) y valida el JWT con `spring-boot-starter-oauth2-resource-server`
+  + `spring-boot-starter-security` (`ServerHttpSecurity` /
+  `@EnableWebFluxSecurity`, ver `config/SecurityConfig.java`).
+- **Los 8 microservicios:** Spring MVC clásico (`spring-boot-starter-web`,
+  servlet, no reactivo) + **Spring Data JPA/Hibernate**
+  (`spring-boot-starter-data-jpa`) contra PostgreSQL (driver
+  `org.postgresql:postgresql`), cada uno con su propio
+  `@RestController` / `@Entity` / `@Repository` en su propio paquete. Cada
+  uno valida el mismo JWT **de forma independiente** del BFF
+  (`spring-boot-starter-oauth2-resource-server` + `HttpSecurity` /
+  `@EnableMethodSecurity`, para poder usar `@PreAuthorize` en los
+  controllers) — defensa en profundidad, no confían ciegamente en que ya
+  pasó por el gateway.
+- **Autenticación/IDaaS:** Azure Entra ID (Microsoft identity platform) — 2
+  App Registrations (backend API + frontend SPA) en el mismo Tenant, App
+  Roles (`ADMIN` / `BARISTA` / `CAJERO`) y scopes (`pedidos.read` /
+  `pedidos.write`) expuestos en el backend y consentidos en el frontend (ver
+  sección 4).
+- **Frontend:** **React 18.3 + Vite 5.4**, `@azure/msal-browser` 3.20 +
+  `@azure/msal-react` 2.1 (login, manejo de tokens y su cache) y
+  `react-router-dom` 6.26 (rutas y el guard `ProtectedRoute`).
+- **Base de datos:** PostgreSQL 16 (`postgres:16-alpine` en Docker), un
+  esquema por microservicio dentro de la misma base
+  (`init-db/01-schemas.sql`). En modo `noauth` cada microservicio usa su
+  propia base **H2** embebida en su lugar (sin Postgres).
+- **Contenedores:** los 9 módulos backend comparten un único `Dockerfile`
+  multi-stage (build con Maven + JDK 17, runtime con JRE 17 Alpine),
+  parametrizado por `build.args.MODULE` para compilar solo el módulo que
+  corresponde a cada imagen; el frontend tiene su propio `Dockerfile` (build
+  con Node 20, se sirve con `vite preview`). Todo orquestado por un único
+  `docker-compose.yml` en la raíz del repo.
+- **Despliegue de referencia:** instancia EC2 (Ubuntu) con Docker + Nginx
+  como reverse proxy con certificado SSL autofirmado (ver sección 9).
+
+### Módulos de negocio y puertos
+
+| Microservicio | Puerto | Qué gestiona | Endpoint base |
+|---|---|---|---|
+| `bff-gateway` | 8080 | Único punto de entrada del frontend; enruta y valida JWT antes de reenviar a cualquiera de los 8 de abajo | `/api/**` |
+| `ms-productos` | 8081 | Menú (catálogo de productos) — el único módulo con lectura pública (`GET`) | `/api/productos` |
+| `ms-inventario` | 8082 | Insumos y stock | `/api/inventario` |
+| `ms-pedidos` | 8083 | Pedidos y sus ítems | `/api/pedidos` |
+| `ms-clientes` | 8084 | Clientes registrados | `/api/clientes` |
+| `ms-pagos` | 8085 | Pagos | `/api/pagos` |
+| `ms-empleados` | 8086 | Empleados | `/api/empleados` |
+| `ms-proveedores` | 8087 | Proveedores | `/api/proveedores` |
+| `ms-reportes` | 8088 | Reportes (venta diaria, etc.) | `/api/reportes` |
+
+El frontend (`http://localhost:4200`) solo le habla al `bff-gateway`
+(`http://localhost:8080/api/...`) — nunca llama directo a un microservicio.
+Los puertos 8081-8088 quedan expuestos igual en Docker por conveniencia (para
+probar un microservicio aislado con `curl`), no porque el frontend los use.
 
 **Seguridad implementada de punta a punta (no es un mockup):**
 - Login real con MSAL contra Azure Entra ID desde el frontend (`src/auth/authConfig.js`), con guard de rutas (`ProtectedRoute.jsx`) y hook que adjunta el access token como `Authorization: Bearer` a cada llamada (`src/services/apiClient.js`).
