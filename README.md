@@ -12,6 +12,38 @@ Gateway) → 8 microservicios Spring Boot → PostgreSQL.
 
 ---
 
+## Qué tiene el proyecto (estado actual)
+
+**Módulos de negocio** (uno por microservicio, todos Spring Boot + JPA, cada
+uno con su propio esquema en la misma base Postgres):
+
+| Microservicio | Puerto | Qué gestiona |
+|---|---|---|
+| `ms-productos` | 8081 | Menú (catálogo de productos) — el único con lectura pública |
+| `ms-inventario` | 8082 | Insumos y stock |
+| `ms-pedidos` | 8083 | Pedidos y sus ítems |
+| `ms-clientes` | 8084 | Clientes registrados |
+| `ms-pagos` | 8085 | Pagos |
+| `ms-empleados` | 8086 | Empleados |
+| `ms-proveedores` | 8087 | Proveedores |
+| `ms-reportes` | 8088 | Reportes (venta diaria, etc.) |
+| `bff-gateway` | 8080 | Spring Cloud Gateway: única puerta de entrada del frontend, enruta a los 8 anteriores |
+
+**Seguridad implementada de punta a punta (no es un mockup):**
+- Login real con MSAL contra Azure Entra ID desde el frontend (`src/auth/authConfig.js`), con guard de rutas (`ProtectedRoute.jsx`) y hook que adjunta el access token como `Authorization: Bearer` a cada llamada (`src/services/apiClient.js`).
+- El `bff-gateway` valida el JWT (issuer, audience, firma) antes de reenviar cualquier petición — sin token válido, responde `401` sin tocar el backend de negocio. Cada microservicio individual valida el JWT otra vez de forma independiente (defensa en profundidad).
+- Autorización por rol con `@PreAuthorize` en los controllers (`hasAuthority('ADMIN')`, etc.), usando el claim `roles` del **access token** (no del ID token — los App Roles se asignan en el Enterprise Application del backend, así que solo viajan en el token pedido con el scope del backend).
+- `GET /api/productos` es la única ruta pública (un cliente ve el menú sin loguearse); crear/editar/eliminar productos y el resto de los módulos del staff exigen JWT + rol.
+- CORS resuelto dentro de la cadena de Spring Security (`CorsConfig.java`), no como filtro aparte, para que también lleve los headers correctos en respuestas de error (401/403), no solo en las exitosas.
+
+**Modos de ejecución:**
+- `noauth` (default en Docker): sin Azure, JWT sin validar, cada microservicio con su propia H2 embebida — para demos rápidas.
+- Azure real: valida JWT contra tu Tenant, usa Postgres compartido con un esquema por microservicio.
+
+**Infraestructura:** todo dockerizado (`docker-compose.yml` en la raíz — Postgres + 8 microservicios + BFF + frontend con un solo `docker compose up --build -d`), y con un despliegue de referencia corriendo en una instancia EC2 (nginx como proxy con SSL autofirmado, ver sección 9).
+
+---
+
 ## 0. Qué se evalúa realmente (para priorizar tu tiempo)
 
 Según la pauta oficial del EP1, la nota se calcula sobre 2 indicadores:
