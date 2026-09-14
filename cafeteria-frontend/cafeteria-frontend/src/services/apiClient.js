@@ -36,7 +36,18 @@ function useApiClientMsal() {
       const response = await instance.acquireTokenSilent({ ...loginRequest, account });
       console.log('TOKEN OBTENIDO:', response.accessToken ? response.accessToken.substring(0, 50) + '...' : 'SIN TOKEN');
       if (response.accessToken) {
-        console.log('PAYLOAD DEL ACCESS TOKEN:', JSON.parse(atob(response.accessToken.split('.')[1])));
+        try {
+          const base64 = response.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+          const json = decodeURIComponent(
+            atob(base64)
+              .split('')
+              .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
+              .join('')
+          );
+          console.log('PAYLOAD DEL ACCESS TOKEN:', JSON.parse(json));
+        } catch (decodeError) {
+          console.log('NO SE PUDO DECODIFICAR EL TOKEN:', decodeError);
+        }
       }
       return response.accessToken;
     } catch (error) {
