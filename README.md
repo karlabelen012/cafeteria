@@ -361,3 +361,6 @@ cafeteria-frontend/cafeteria-frontend/
   public/banner/hero.jpg       # foto de fondo del banner principal
   .env.example                 # variables VITE_* (copiar a .env con tus datos)
 ```
+
+<img width="1652" height="1002" alt="Diagrama sin título drawio (1)" src="https://github.com/user-attachments/assets/2e8a78a1-de1f-4999-9654-500460d2638b" />
+
