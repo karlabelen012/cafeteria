@@ -236,11 +236,24 @@ El `docker-compose.yml` de la raíz define:
   [cafeteria-frontend/cafeteria-frontend/Dockerfile](cafeteria-frontend/cafeteria-frontend/Dockerfile)
   (build con Node + `vite build`, se sirve con `vite preview`).
 
-Para cambiar a modo con Azure real dentro de Docker: en cada servicio `ms-*` y
-`bff-gateway` del `docker-compose.yml`, cambia `SPRING_PROFILES_ACTIVE` y
-agrega `AZURE_ISSUER_URI` / `AZURE_AUDIENCE`; en `frontend`, pasa
-`VITE_AUTH_DISABLED: "false"` y tus `VITE_AZURE_CLIENT_ID` /
-`VITE_AZURE_TENANT_ID` reales como build-args.
+Para cambiar a modo con Azure real dentro de Docker **no edites
+`docker-compose.yml`**: copia `.env.example` a `.env` en la raíz y completa
+ahí `SPRING_PROFILES_ACTIVE=` (vacío), `AZURE_ISSUER_URI`, `AZURE_AUDIENCE`,
+`VITE_AUTH_DISABLED=false`, `VITE_AZURE_CLIENT_ID`, `VITE_AZURE_TENANT_ID` y
+`VITE_API_SCOPES` con tus datos reales — Docker Compose lo lee automático.
+Ese `.env` nunca se sube a git (ver `.gitignore` raíz). Después:
+```bash
+docker compose up --build -d
+```
+
+**CORS y rutas públicas:** el CORS se configura dentro de la cadena de Spring
+Security del BFF (`bff-gateway/.../config/CorsConfig.java`), no como un
+filtro aparte — un `CorsWebFilter` separado no alcanza a agregar los headers
+cuando Security corta la respuesta con 401/403, y el navegador termina
+bloqueando hasta los errores legítimos como si fueran de CORS. Por diseño,
+`GET /api/productos` es público (un cliente ve el menú sin loguearse); crear/
+editar/eliminar productos y el resto de las rutas del staff siguen exigiendo
+JWT + rol.
 
 ---
 
@@ -292,6 +305,35 @@ Si el tiempo no alcanza para esto, prioriza sin culpa las secciones 1-6: un
 sistema que corre local (o en Docker) con el flujo de seguridad completo y
 bien explicado en el README vale más, frente a la pauta, que un despliegue a
 medio hacer en AWS.
+
+### 9.1 Cambiar la IP pública del EC2 (si la instancia se reinicia)
+
+Una instancia EC2 sin Elastic IP cambia de IP pública cada vez que se
+detiene y se vuelve a iniciar. Cuando eso pase, en la instancia (por SSH):
+
+```bash
+# 1. Actualizar el .env con la IP nueva
+sed -i 's|<IP_VIEJA>|<IP_NUEVA>|g' .env
+cat .env  # verificar que cambió
+
+# 2. Regenerar el certificado SSL autofirmado para la nueva IP
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/cafeteria.key \
+  -out /etc/ssl/certs/cafeteria.crt \
+  -subj "/CN=<IP_NUEVA>"
+sudo systemctl reload nginx
+
+# 3. Reconstruir el frontend con la nueva IP (VITE_API_BASE_URL se hornea
+#    en el build, no es una variable de entorno normal de contenedor)
+docker compose stop frontend
+docker compose rm -f frontend
+docker compose build --no-cache frontend
+docker compose up -d frontend
+```
+
+Para evitar este problema de raíz, lo correcto es asignarle una **Elastic
+IP** a la instancia (gratis mientras esté asociada a una instancia corriendo)
+para que la IP pública quede fija.
 
 ---
 
