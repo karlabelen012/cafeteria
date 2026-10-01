@@ -81,6 +81,43 @@ public class MovimientoStockServiceImpl implements MovimientoStockService {
         }
     }
 
+    @Override
+    @Transactional
+    public MovimientoStockResponse registrarSalidaForzada(Long insumoId, Double cantidad, String motivo) {
+        Insumo insumo = insumoRepository.findById(insumoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("No existe el insumo con id " + insumoId));
+
+        double nuevoStock = insumo.getStockActual() - cantidad;
+        String tipoRegistrado;
+        double cantidadRegistrada;
+        if (nuevoStock < 0) {
+            // Excepcion explicita a la regla general de "SALIDA nunca deja
+            // negativo" (ver aplicarMovimiento): este metodo solo lo usa el
+            // descuento automatico por pedido, que segun docs/EP2_PLAN.md
+            // seccion 5 debe dejar el stock en 0 (no fallar) cuando no alcanza,
+            // y auditar ese ajuste como AJUSTE (no SALIDA), ya que el valor
+            // final no es "stock - cantidad" sino un piso forzado a 0.
+            insumo.setStockActual(0.0);
+            tipoRegistrado = TIPO_AJUSTE;
+            cantidadRegistrada = 0.0;
+        } else {
+            insumo.setStockActual(nuevoStock);
+            tipoRegistrado = TIPO_SALIDA;
+            cantidadRegistrada = cantidad;
+        }
+        insumoRepository.save(insumo);
+
+        MovimientoStock movimiento = new MovimientoStock();
+        movimiento.setInsumoId(insumoId);
+        movimiento.setTipo(tipoRegistrado);
+        movimiento.setCantidad(cantidadRegistrada);
+        movimiento.setMotivo(motivo);
+        movimiento.setFecha(Instant.now());
+        movimiento.setUsuario(usuarioActual());
+
+        return aResponse(repository.save(movimiento));
+    }
+
     private String usuarioActual() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.isAuthenticated() && authentication.getName() != null) {

@@ -111,6 +111,56 @@ class ClienteServiceImplTest {
     }
 
     @Test
+    void registrarCompra_clienteNuevo_loCreaConPuntosCorrectos() {
+        when(repository.findByEmail("nuevo@example.cl")).thenReturn(Optional.empty());
+        when(repository.save(any(Cliente.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
+
+        ClienteResponse respuesta = service.registrarCompra("Nuevo Cliente", "nuevo@example.cl", 5000.0);
+
+        assertThat(respuesta.nombre()).isEqualTo("Nuevo Cliente");
+        assertThat(respuesta.email()).isEqualTo("nuevo@example.cl");
+        assertThat(respuesta.puntosFidelizacion()).isEqualTo(5);
+
+        ArgumentCaptor<Cliente> captor = ArgumentCaptor.forClass(Cliente.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getPuntosFidelizacion()).isEqualTo(5);
+    }
+
+    @Test
+    void registrarCompra_clienteExistente_sumaPuntosALosQueYaTenia() {
+        when(repository.findByEmail("camila.rojas@example.cl")).thenReturn(Optional.of(cliente));
+        when(repository.save(any(Cliente.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
+
+        ClienteResponse respuesta = service.registrarCompra("Camila Rojas", "camila.rojas@example.cl", 3000.0);
+
+        // cliente ya tenia 100 puntos (ver setUp), + 3 por los 3000 de esta compra
+        assertThat(respuesta.puntosFidelizacion()).isEqualTo(103);
+        verify(repository).save(cliente);
+    }
+
+    @Test
+    void registrarCompra_montoNoMultiploDeMil_redondeaHaciaAbajo() {
+        cliente.setPuntosFidelizacion(0);
+        when(repository.findByEmail("camila.rojas@example.cl")).thenReturn(Optional.of(cliente));
+        when(repository.save(any(Cliente.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
+
+        ClienteResponse respuesta = service.registrarCompra("Camila Rojas", "camila.rojas@example.cl", 1999.0);
+
+        assertThat(respuesta.puntosFidelizacion()).isEqualTo(1);
+    }
+
+    @Test
+    void registrarCompra_clienteConPuntosNulos_losTrataComoCero() {
+        cliente.setPuntosFidelizacion(null);
+        when(repository.findByEmail("camila.rojas@example.cl")).thenReturn(Optional.of(cliente));
+        when(repository.save(any(Cliente.class))).thenAnswer(invocacion -> invocacion.getArgument(0));
+
+        ClienteResponse respuesta = service.registrarCompra("Camila Rojas", "camila.rojas@example.cl", 2000.0);
+
+        assertThat(respuesta.puntosFidelizacion()).isEqualTo(2);
+    }
+
+    @Test
     void actualizar_conEmailDeOtroCliente_lanzaConflicto() {
         Cliente otro = new Cliente();
         otro.setId(2L);

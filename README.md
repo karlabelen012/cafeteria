@@ -61,7 +61,7 @@ Gateway) → 8 microservicios Spring Boot → PostgreSQL.
 
 | Microservicio | Puerto | Qué gestiona | Endpoint base |
 |---|---|---|---|
-| `bff-gateway` | 8080 | Único punto de entrada del frontend; enruta y valida JWT antes de reenviar a cualquiera de los 8 de abajo | `/api/**` |
+| `bff-gateway` | 8080 | Único punto de entrada del frontend; enruta y valida JWT antes de reenviar a cualquiera de los 9 de abajo | `/api/**` |
 | `ms-productos` | 8081 | Menú (catálogo de productos) — el único módulo con lectura pública (`GET`) | `/api/productos` |
 | `ms-inventario` | 8082 | Insumos y stock | `/api/inventario` |
 | `ms-pedidos` | 8083 | Pedidos y sus ítems | `/api/pedidos` |
@@ -69,7 +69,8 @@ Gateway) → 8 microservicios Spring Boot → PostgreSQL.
 | `ms-pagos` | 8085 | Pagos | `/api/pagos` |
 | `ms-empleados` | 8086 | Empleados | `/api/empleados` |
 | `ms-proveedores` | 8087 | Proveedores | `/api/proveedores` |
-| `ms-reportes` | 8088 | Reportes (venta diaria, etc.) | `/api/reportes` |
+| `ms-reportes` | 8088 | Reportes (dashboard de KPIs, construido solo desde eventos de RabbitMQ) | `/api/reportes` |
+| `ms-notificaciones` | 8089 | Tickets/boletas y alertas (stock bajo, pedido listo), también desde eventos | `/api/notificaciones`, `/api/public/tickets/{codigo}` |
 
 El frontend (`http://localhost:4200`) solo le habla al `bff-gateway`
 (`http://localhost:8080/api/...`) — nunca llama directo a un microservicio.
@@ -521,4 +522,60 @@ el estático (ya no `vite preview`). `docker-entrypoint.sh` elige la config de n
 
 En local, `docker-compose.yml` sigue publicando el frontend en `http://localhost:4200` (mapeado al puerto 80
 del contenedor).
+
+---
+
+## 13. EP2 — Fase 3: mensajería (productores, consumidores, DLX/DLQ, ACK)
+
+### Configuración centralizada (`RabbitProperties` + `RabbitMQConfig`)
+Cada microservicio con mensajería (`ms-pagos`, `ms-pedidos`, `ms-clientes`, `ms-inventario`, `ms-reportes`,
+`ms-notificaciones`) tiene un bloque `app.rabbitmq` en su `application.yml` (exchanges, routing-keys, colas,
+políticas de retención) mapeado por una clase `RabbitProperties` (`@ConfigurationProperties`). `RabbitMQConfig`
+arma los beans `Queue`/`Exchange`/`Binding` leyendo esa clase — nunca un string suelto. Los `@RabbitListener`
+usan placeholders (`"${app.rabbitmq.queues.pago-aprobado}"`), no constantes Java, para que el nombre real de
+la cola salga siempre de `application.yml`.
+
+### Colas, exchanges y bindings
+4 exchanges, 8 colas principales + 8 DLQ = 16 colas, exactamente como en el diseño original (ver
+`docs/EP2_PLAN.md`, anexo al final del archivo, con la tabla completa y las 3 decisiones de diseño que no
+estaban explícitas en el plan original: `clienteEmail` agregado a `PedidoCreadoEvent`, "top productos" en
+`ms-reportes` calculado desde `pedido.creado` en vez de `pago.aprobado`, y `ms-notificaciones` resolviendo el
+detalle del ticket vía REST a `ms-pedidos`).
+
+### `ms-reportes`: modelo de lectura + dashboard
+Nuevo modelo de lectura construido solo desde eventos: `VentaProducto`, `PedidosPorHora`, `PedidoEstadoActual`,
+`ClienteVisto` (además de `VentaDiaria`, que ya existía). `GET /api/reportes/dashboard?desde=&hasta=` calcula
+ventas de hoy, variación semanal, ticket promedio, clientes nuevos, ventas de los últimos 7 días (actual vs.
+semana anterior), pedidos por hora/franja, top 5 productos y pedidos por estado.
+
+### `ms-notificaciones` (nuevo, puerto 8089)
+Tickets/boletas (`Ticket` + `ItemTicket`) y alertas (`Alerta`, tipo `STOCK_BAJO`/`PEDIDO_LISTO`/`DLQ`).
+`TicketListener` consume `pago.aprobado`, completa el detalle (items, código de seguimiento, cliente) con una
+llamada REST a `ms-pedidos` y "envía" el ticket simulando el email con un `log.info` estructurado.
+`AlertaListener` despacha por tipo de evento (`stock.bajo` / `pedido.estado.actualizado`) en una sola cola.
+
+### Cómo probarlo
+
+```bash
+# Dashboard de reportes (requiere al menos un pago aprobado antes)
+curl http://localhost:8080/api/reportes/dashboard
+
+# Tickets (staff)
+curl http://localhost:8080/api/notificaciones/tickets
+
+# Boleta pública por código de seguimiento (sin login)
+curl http://localhost:8080/api/public/tickets/<codigoSeguimiento>
+
+# Alertas y marcarla como leída
+curl http://localhost:8080/api/notificaciones/alertas
+curl -X PATCH http://localhost:8080/api/notificaciones/alertas/1/leida
+
+# Ver las 16 colas en la UI de RabbitMQ
+# http://localhost:15672 (usuario/clave: cafeteria/cafeteria)
+```
+
+### Qué queda pendiente
+- Test de integración con Testcontainers (`@Tag("integration")`) del flujo checkout → PAGADO end-to-end.
+- Fase 4: `ms-rabbitmq-admin` (administrador de colas/exchanges/bindings vía API REST, solo ADMIN).
+- Fase 5: página "Mensajería" y paneles de alertas/DLQ en el dashboard del frontend.
 

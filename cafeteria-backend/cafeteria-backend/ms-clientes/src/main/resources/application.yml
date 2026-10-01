@@ -45,3 +45,22 @@ management:
 app:
   security:
     enabled: true
+  clients:
+    # URL base de ms-pedidos, usada por PedidoClient para obtener el snapshot
+    # de cliente (nombre/email) de un pedido pagado (ver docs/EP2_PLAN.md
+    # seccion 5). Ver limitacion documentada en PedidoClient: este endpoint
+    # exige JWT y este cliente lo llama desde un listener sin usuario logueado.
+    pedidos-url: ${MS_PEDIDOS_URL:http://localhost:8083}
+  rabbitmq:
+    exchanges:
+      pagos: cafeteria.pagos.exchange
+      dlx: cafeteria.dlx
+    routing-keys:
+      pago-aprobado: pago.aprobado
+    queues:
+      pago-aprobado: clientes.pago-aprobado.queue
+    policies:
+      delivery-limit: 3
+      message-ttl-ms: 600000
+      max-length: 10000
+      dlq-ttl-ms: 86400000

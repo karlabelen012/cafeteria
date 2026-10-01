@@ -31,6 +31,7 @@
         <module>ms-empleados</module>
         <module>ms-proveedores</module>
         <module>ms-reportes</module>
+        <module>ms-notificaciones</module>
         <module>bff-gateway</module>
     </modules>
 

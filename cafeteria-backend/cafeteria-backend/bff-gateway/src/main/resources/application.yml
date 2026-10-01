@@ -39,6 +39,14 @@ spring:
           uri: ${MS_REPORTES_URL:http://localhost:8088}
           predicates:
             - Path=/api/reportes/**
+        - id: ms-pedidos-public
+          uri: ${MS_PEDIDOS_URL:http://localhost:8083}
+          predicates:
+            - Path=/api/public/checkout,/api/public/pedidos/**
+        - id: ms-notificaciones
+          uri: ${MS_NOTIFICACIONES_URL:http://localhost:8089}
+          predicates:
+            - Path=/api/notificaciones/**,/api/public/tickets/**
       # CORS se configura en CorsConfig.java, dentro de la cadena de Spring
       # Security (ver SecurityConfig / NoAuthSecurityConfig) en vez de aqui:
       # un "globalcors" separado no alcanza a agregar los headers cuando

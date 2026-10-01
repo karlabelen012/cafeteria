@@ -22,6 +22,7 @@ COPY ms-pagos/pom.xml ms-pagos/pom.xml
 COPY ms-empleados/pom.xml ms-empleados/pom.xml
 COPY ms-proveedores/pom.xml ms-proveedores/pom.xml
 COPY ms-reportes/pom.xml ms-reportes/pom.xml
+COPY ms-notificaciones/pom.xml ms-notificaciones/pom.xml
 COPY bff-gateway/pom.xml bff-gateway/pom.xml
 RUN chmod +x mvnw && ./mvnw -q -B -pl ${MODULE} -am dependency:go-offline
 

@@ -45,3 +45,22 @@ management:
 app:
   security:
     enabled: true
+  clients:
+    # URL base de ms-pedidos, usada por PedidoClient para resolver los items
+    # de un pedido pagado (ver docs/EP2_PLAN.md seccion 5 y PedidoClient).
+    pedidos-url: ${MS_PEDIDOS_URL:http://localhost:8083}
+  rabbitmq:
+    exchanges:
+      pagos: cafeteria.pagos.exchange
+      inventario: cafeteria.inventario.exchange
+      dlx: cafeteria.dlx
+    routing-keys:
+      pago-aprobado: pago.aprobado
+      stock-bajo: stock.bajo
+    queues:
+      pago-aprobado: inventario.pago-aprobado.queue
+    policies:
+      delivery-limit: 3
+      message-ttl-ms: 600000
+      max-length: 10000
+      dlq-ttl-ms: 86400000

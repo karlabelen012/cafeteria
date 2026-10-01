@@ -1,0 +1,70 @@
+spring:
+  application:
+    name: ms-notificaciones
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cafeteria}
+    username: ${DB_USER:cafeteria}
+    password: ${DB_PASSWORD:cafeteria}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        default_schema: notificaciones
+  # NOTA: issuer-uri / audiences / jwk-set-uri NO se configuran aqui bajo
+  # spring.security.oauth2.resourceserver.jwt.* — SecurityConfig.java arma su
+  # propio bean JwtDecoder leyendo AZURE_ISSUER_URI / AZURE_JWK_SET_URI /
+  # AZURE_AUDIENCES directamente, para decidir en Java (no via propiedades)
+  # si usar jwk-set-uri (tenants ciamlogin) o issuer-uri (Azure AD "clasico").
+  # Dejar esas propiedades aqui ademas del bean propio hace que Spring Boot
+  # intente armar su propio JwtDecoder tambien y falle por bean ambiguo.
+  rabbitmq:
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${RABBITMQ_USER:cafeteria}
+    password: ${RABBITMQ_PASSWORD:cafeteria}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 5
+        default-requeue-rejected: false
+
+server:
+  port: 8089
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  security:
+    enabled: true
+  clients:
+    # URL base de ms-pedidos, usada por PedidoClient para obtener el detalle
+    # (items, codigoSeguimiento, cliente) de un pedido pagado y armar el
+    # ticket (ver docs/EP2_PLAN.md seccion 5).
+    pedidos-url: ${MS_PEDIDOS_URL:http://localhost:8083}
+  rabbitmq:
+    exchanges:
+      pagos: cafeteria.pagos.exchange
+      inventario: cafeteria.inventario.exchange
+      pedidos: cafeteria.pedidos.exchange
+      dlx: cafeteria.dlx
+    routing-keys:
+      pago-aprobado: pago.aprobado
+      stock-bajo: stock.bajo
+      pedido-estado-actualizado: pedido.estado.actualizado
+    queues:
+      ticket: notificaciones.ticket.queue
+      alertas: notificaciones.alertas.queue
+    policies:
+      delivery-limit: 3
+      message-ttl-ms: 600000
+      max-length: 10000
+      dlq-ttl-ms: 86400000

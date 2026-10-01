@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.Instant;
 
@@ -31,8 +31,13 @@ public class MovimientoStock {
     @Pattern(regexp = TIPOS_REGEX, message = "El tipo debe ser uno de: ENTRADA, SALIDA, AJUSTE")
     private String tipo;
 
+    // PositiveOrZero (no Positive) a nivel de entidad: el 0 solo lo usa
+    // MovimientoStockServiceImpl.registrarSalidaForzada (ver esa clase) para
+    // dejar constancia, como AJUSTE, de que el stock quedo en 0 cuando el
+    // descuento automatico por pedido no alcanzaba. El flujo manual/API sigue
+    // exigiendo cantidad > 0 via @Positive en MovimientoStockRequest.
     @NotNull(message = "La cantidad es obligatoria")
-    @Positive(message = "La cantidad debe ser mayor que 0")
+    @PositiveOrZero(message = "La cantidad debe ser mayor o igual a 0")
     private Double cantidad;
 
     @NotBlank(message = "El motivo es obligatorio")

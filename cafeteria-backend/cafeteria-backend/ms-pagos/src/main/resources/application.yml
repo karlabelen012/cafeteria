@@ -45,3 +45,19 @@ management:
 app:
   security:
     enabled: true
+  rabbitmq:
+    exchanges:
+      pedidos: cafeteria.pedidos.exchange
+      pagos: cafeteria.pagos.exchange
+      dlx: cafeteria.dlx
+    routing-keys:
+      pedido-creado: pedido.creado
+      pago-aprobado: pago.aprobado
+      pago-rechazado: pago.rechazado
+    queues:
+      pedido-creado: pagos.pedido-creado.queue
+    policies:
+      delivery-limit: 3
+      message-ttl-ms: 600000
+      max-length: 10000
+      dlq-ttl-ms: 86400000

@@ -1,17 +1,17 @@
 package cl.duoc.cafeteria.pedidos.controller;
 
-import cl.duoc.cafeteria.pedidos.model.ItemPedido;
+import cl.duoc.cafeteria.pedidos.dto.ItemResponse;
 import cl.duoc.cafeteria.pedidos.repository.ItemPedidoRepository;
-import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-// Los items son parte del agregado Pedido: viven en el mismo microservicio
-// para mantener la consistencia transaccional al crear un pedido completo.
+// Sub-recurso de solo lectura: ahora que PedidoService.crear()/checkout()
+// resuelven y guardan los items completos (con nombre y precio tomados de
+// ms-productos) al crear el pedido, ya no tiene sentido un POST directo aqui
+// que permitiera mandar un item suelto con precio arbitrario desde el
+// navegador (ver docs/EP2_PLAN.md seccion 2 y 5). Se elimino el POST que
+// existia antes.
 @RestController
 @RequestMapping("/api/pedidos/{pedidoId}/items")
 public class ItemPedidoController {
@@ -23,17 +23,9 @@ public class ItemPedidoController {
     }
 
     @GetMapping
-    public List<ItemPedido> listarPorPedido(@PathVariable Long pedidoId) {
-        return repository.findByPedidoId(pedidoId);
-    }
-
-    // Mismos roles que pueden crear un pedido (ver PedidoController).
-    @PostMapping
-    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.pedidos.security.Roles).ADMIN, "
-            + "T(cl.duoc.cafeteria.pedidos.security.Roles).BARISTA, "
-            + "T(cl.duoc.cafeteria.pedidos.security.Roles).CAJERO)")
-    public ResponseEntity<ItemPedido> agregarItem(@PathVariable Long pedidoId, @Valid @RequestBody ItemPedido item) {
-        item.setPedidoId(pedidoId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(item));
+    public List<ItemResponse> listarPorPedido(@PathVariable Long pedidoId) {
+        return repository.findByPedidoId(pedidoId).stream()
+                .map(ItemResponse::desde)
+                .toList();
     }
 }

@@ -54,6 +54,11 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/actuator/health").permitAll()
+                // Checkout y seguimiento publicos (ver controller/PublicoController):
+                // el BFF ya los expone sin JWT, pero este microservicio valida su
+                // propio JWT de forma independiente, asi que tambien hay que
+                // marcarlos como publicos aqui o quedarian respondiendo 401.
+                .requestMatchers("/api/public/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2ResourceServer(oauth2 -> oauth2

@@ -73,6 +73,31 @@ public class ClienteServiceImpl implements ClienteService {
         return ClienteResponse.desde(repository.save(cliente));
     }
 
+    @Override
+    public ClienteResponse registrarCompra(String nombre, String email, double montoTotal) {
+        Cliente cliente = repository.findByEmail(email).orElseGet(() -> {
+            Cliente nuevo = new Cliente();
+            nuevo.setEmail(email);
+            nuevo.setPuntosFidelizacion(0);
+            return nuevo;
+        });
+
+        // Si el nombre viene vacio (no deberia pasar, pero el snapshot de
+        // ms-pedidos es un dato externo) se usa el email como respaldo para no
+        // violar la validacion @NotBlank de Cliente.nombre al crear uno nuevo.
+        if (nombre != null && !nombre.isBlank()) {
+            cliente.setNombre(nombre);
+        } else if (cliente.getNombre() == null || cliente.getNombre().isBlank()) {
+            cliente.setNombre(email);
+        }
+
+        int puntosGanados = (int) (montoTotal / 1000);
+        int puntosActuales = cliente.getPuntosFidelizacion() != null ? cliente.getPuntosFidelizacion() : 0;
+        cliente.setPuntosFidelizacion(puntosActuales + puntosGanados);
+
+        return ClienteResponse.desde(repository.save(cliente));
+    }
+
     private Cliente buscarOFallar(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new RecursoNoEncontradoException("No existe un cliente con id " + id));

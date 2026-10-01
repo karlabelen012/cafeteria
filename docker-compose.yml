@@ -310,6 +310,29 @@ services:
       retries: 10
       start_period: 30s
 
+  ms-notificaciones:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-notificaciones
+    container_name: ms-notificaciones
+    ports:
+      - "8089:8089"
+    volumes:
+      - ms_notificaciones_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8089/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   bff-gateway:
     <<: *backend-common
     build:
@@ -334,6 +357,7 @@ services:
       MS_EMPLEADOS_URL: http://ms-empleados:8086
       MS_PROVEEDORES_URL: http://ms-proveedores:8087
       MS_REPORTES_URL: http://ms-reportes:8088
+      MS_NOTIFICACIONES_URL: http://ms-notificaciones:8089
     depends_on:
       ms-productos:
         condition: service_healthy
@@ -350,6 +374,8 @@ services:
       ms-proveedores:
         condition: service_healthy
       ms-reportes:
+        condition: service_healthy
+      ms-notificaciones:
         condition: service_healthy
 
   frontend:
@@ -387,3 +413,4 @@ volumes:
   ms_empleados_data:
   ms_proveedores_data:
   ms_reportes_data:
+  ms_notificaciones_data:

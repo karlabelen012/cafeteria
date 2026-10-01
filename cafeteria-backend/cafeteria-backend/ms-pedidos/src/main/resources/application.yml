@@ -45,3 +45,23 @@ management:
 app:
   security:
     enabled: true
+  clients:
+    # Mismo nombre funciona en Docker (nombre del servicio) y en local.
+    productos-url: ${MS_PRODUCTOS_URL:http://localhost:8081}
+  rabbitmq:
+    exchanges:
+      pedidos: cafeteria.pedidos.exchange
+      pagos: cafeteria.pagos.exchange
+      dlx: cafeteria.dlx
+    routing-keys:
+      pedido-creado: pedido.creado
+      pedido-estado-actualizado: pedido.estado.actualizado
+      pago-aprobado: pago.aprobado
+      pago-rechazado: pago.rechazado
+    queues:
+      pago-resultado: pedidos.pago-resultado.queue
+    policies:
+      delivery-limit: 3
+      message-ttl-ms: 600000
+      max-length: 10000
+      dlq-ttl-ms: 86400000
