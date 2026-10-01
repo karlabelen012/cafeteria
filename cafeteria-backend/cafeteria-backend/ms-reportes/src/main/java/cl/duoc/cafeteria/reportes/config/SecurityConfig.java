@@ -76,9 +76,9 @@ public class SecurityConfig {
     // En ambos casos se valida issuer + audiencias igual que lo haria Boot.
     @Bean
     public JwtDecoder jwtDecoder(
-            @Value("${{AZURE_ISSUER_URI:https://login.microsoftonline.com/<TENANT_ID>/v2.0}}") String issuerUri,
-            @Value("${{AZURE_JWK_SET_URI:}}") String jwkSetUri,
-            @Value("${{AZURE_AUDIENCES:api://cafeteria-backend}}") String audiencesRaw) {{
+            @Value("${AZURE_ISSUER_URI:https://login.microsoftonline.com/<TENANT_ID>/v2.0}") String issuerUri,
+            @Value("${AZURE_JWK_SET_URI:}") String jwkSetUri,
+            @Value("${AZURE_AUDIENCES:api://cafeteria-backend}") String audiencesRaw) {
 
         NimbusJwtDecoder decoder = StringUtils.hasText(jwkSetUri)
                 ? NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build()
@@ -94,7 +94,7 @@ public class SecurityConfig {
                 JwtValidators.createDefaultWithIssuer(issuerUri), validadorAudiencia));
 
         return decoder;
-    }}
+    }
 
     // Conversor de roles comun a todos los microservicios: lee el claim "roles"
     // del JWT y normaliza cada rol a MAYUSCULAS sin prefijo (p.ej. "ADMIN", no
