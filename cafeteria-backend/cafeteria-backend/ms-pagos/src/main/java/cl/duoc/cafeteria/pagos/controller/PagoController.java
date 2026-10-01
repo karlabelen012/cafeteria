@@ -33,16 +33,19 @@ public class PagoController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
-    // Solo roles autorizados (via claim "roles" del JWT) pueden crear/modificar/eliminar
+    // Matriz de roles (ver docs/EP2_PLAN.md seccion 4): ADMIN = CRUD + anular;
+    // CAJERO = ver, registrar (solo crear); GERENTE = ver.
     @PostMapping
-    @PreAuthorize("hasAuthority('CAJERO') or hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.pagos.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.pagos.security.Roles).CAJERO)")
     public ResponseEntity<Pago> crear(@Valid @RequestBody Pago pago) {
         Pago guardado = repository.save(pago);
         return ResponseEntity.status(HttpStatus.CREATED).body(guardado);
     }
 
+    // Modificar/anular un pago ya registrado es una accion administrativa.
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('CAJERO') or hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.pagos.security.Roles).ADMIN)")
     public ResponseEntity<Pago> actualizar(@PathVariable Long id, @Valid @RequestBody Pago datos) {
         return repository.findById(id).map(existente -> {
             datos.setId(existente.getId());
@@ -51,7 +54,7 @@ public class PagoController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.pagos.security.Roles).ADMIN)")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         if (!repository.existsById(id)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

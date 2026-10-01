@@ -27,8 +27,11 @@ public class ItemPedidoController {
         return repository.findByPedidoId(pedidoId);
     }
 
+    // Mismos roles que pueden crear un pedido (ver PedidoController).
     @PostMapping
-    @PreAuthorize("hasAuthority('BARISTA') or hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.pedidos.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.pedidos.security.Roles).BARISTA, "
+            + "T(cl.duoc.cafeteria.pedidos.security.Roles).CAJERO)")
     public ResponseEntity<ItemPedido> agregarItem(@PathVariable Long pedidoId, @Valid @RequestBody ItemPedido item) {
         item.setPedidoId(pedidoId);
         return ResponseEntity.status(HttpStatus.CREATED).body(repository.save(item));

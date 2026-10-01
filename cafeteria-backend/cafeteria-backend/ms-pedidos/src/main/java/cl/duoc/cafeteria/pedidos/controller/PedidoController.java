@@ -33,16 +33,20 @@ public class PedidoController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
-    // Solo roles autorizados (via claim "roles" del JWT) pueden crear/modificar/eliminar
+    // Matriz de roles (ver docs/EP2_PLAN.md seccion 4): ADMIN = CRUD + cancelar;
+    // BARISTA = ver, crear, cambiar estado; CAJERO = ver, crear; GERENTE = ver.
     @PostMapping
-    @PreAuthorize("hasAuthority('BARISTA') or hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.pedidos.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.pedidos.security.Roles).BARISTA, "
+            + "T(cl.duoc.cafeteria.pedidos.security.Roles).CAJERO)")
     public ResponseEntity<Pedido> crear(@Valid @RequestBody Pedido pedido) {
         Pedido guardado = repository.save(pedido);
         return ResponseEntity.status(HttpStatus.CREATED).body(guardado);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('BARISTA') or hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.pedidos.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.pedidos.security.Roles).BARISTA)")
     public ResponseEntity<Pedido> actualizar(@PathVariable Long id, @Valid @RequestBody Pedido datos) {
         return repository.findById(id).map(existente -> {
             datos.setId(existente.getId());
@@ -50,8 +54,9 @@ public class PedidoController {
         }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
+    // Cancelar un pedido es, en la practica, eliminarlo: solo ADMIN.
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.pedidos.security.Roles).ADMIN)")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         if (!repository.existsById(id)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

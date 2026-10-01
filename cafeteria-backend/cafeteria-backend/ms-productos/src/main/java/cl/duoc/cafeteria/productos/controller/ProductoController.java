@@ -1,7 +1,8 @@
 package cl.duoc.cafeteria.productos.controller;
 
-import cl.duoc.cafeteria.productos.model.Producto;
-import cl.duoc.cafeteria.productos.repository.ProductoRepository;
+import cl.duoc.cafeteria.productos.dto.ProductoRequest;
+import cl.duoc.cafeteria.productos.dto.ProductoResponse;
+import cl.duoc.cafeteria.productos.service.ProductoService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,53 +11,52 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Solo traduce HTTP <-> DTO <-> ProductoService. Sin logica de negocio
+ * (ver docs/EP2_PLAN.md seccion 3.7 / regla 4 del agente).
+ */
 @RestController
 @RequestMapping("/api/productos")
 public class ProductoController {
 
-    private final ProductoRepository repository;
+    private final ProductoService service;
 
-    public ProductoController(ProductoRepository repository) {
-        this.repository = repository;
+    public ProductoController(ProductoService service) {
+        this.service = service;
     }
 
-    // Cualquier usuario autenticado (con un JWT valido) puede listar y consultar
+    // Publico (permitAll en SecurityConfig): tienda y cualquier usuario
+    // autenticado pueden listar y filtrar por categoria/disponibilidad.
     @GetMapping
-    public List<Producto> listar() {
-        return repository.findAll();
+    public List<ProductoResponse> listar(
+            @RequestParam(required = false) String categoria,
+            @RequestParam(required = false) Boolean disponible) {
+        return service.listar(categoria, disponible);
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Producto> obtener(@PathVariable Long id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    public ResponseEntity<ProductoResponse> obtener(@PathVariable Long id) {
+        return ResponseEntity.ok(service.obtener(id));
     }
 
-    // Solo roles autorizados (via claim "roles" del JWT) pueden crear/modificar/eliminar
+    // Solo ADMIN puede crear/editar/eliminar productos (ver docs/EP2_PLAN.md
+    // seccion 4, matriz de roles: "Menu (productos)").
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Producto> crear(@Valid @RequestBody Producto producto) {
-        Producto guardado = repository.save(producto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(guardado);
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.productos.security.Roles).ADMIN)")
+    public ResponseEntity<ProductoResponse> crear(@Valid @RequestBody ProductoRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.crear(request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Producto> actualizar(@PathVariable Long id, @Valid @RequestBody Producto datos) {
-        return repository.findById(id).map(existente -> {
-            datos.setId(existente.getId());
-            return ResponseEntity.ok(repository.save(datos));
-        }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.productos.security.Roles).ADMIN)")
+    public ResponseEntity<ProductoResponse> actualizar(@PathVariable Long id, @Valid @RequestBody ProductoRequest request) {
+        return ResponseEntity.ok(service.actualizar(id, request));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.productos.security.Roles).ADMIN)")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        if (!repository.existsById(id)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        repository.deleteById(id);
+        service.eliminar(id);
         return ResponseEntity.noContent().build();
     }
 }

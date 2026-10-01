@@ -31,24 +31,8 @@ function useApiClientMsal() {
     // tienda). Las rutas que si exigen JWT devuelven 401 igual, y el UI
     // (ProtectedRoute) ya evita que un usuario sin sesion llegue ahi.
     if (!account) return null;
-    console.log('ROLES EN EL TOKEN:', account.idTokenClaims?.roles || 'sin roles en idToken');
     try {
       const response = await instance.acquireTokenSilent({ ...loginRequest, account });
-      console.log('TOKEN OBTENIDO:', response.accessToken ? response.accessToken.substring(0, 50) + '...' : 'SIN TOKEN');
-      if (response.accessToken) {
-        try {
-          const base64 = response.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
-          const json = decodeURIComponent(
-            atob(base64)
-              .split('')
-              .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-              .join('')
-          );
-          console.log('PAYLOAD DEL ACCESS TOKEN:', JSON.parse(json));
-        } catch (decodeError) {
-          console.log('NO SE PUDO DECODIFICAR EL TOKEN:', decodeError);
-        }
-      }
       return response.accessToken;
     } catch (error) {
       if (error instanceof InteractionRequiredAuthError) {
@@ -64,7 +48,6 @@ function useApiClientMsal() {
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
-    console.log('HEADERS ENVIADOS:', headers);
     const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers });
     if (!response.ok) {
       throw new Error(`Error ${response.status} llamando a ${path}`);

@@ -443,3 +443,37 @@ cafeteria-frontend/cafeteria-frontend/
 
 <img width="1652" height="1002" alt="Diagrama sin título drawio (1)" src="https://github.com/user-attachments/assets/2e8a78a1-de1f-4999-9654-500460d2638b" />
 
+## 11. EP2 — Fase 1: seguridad, roles y reglas de negocio
+
+Ver el plan completo en `docs/EP2_PLAN.md`. Resumen de lo que cambió en esta fase:
+
+### Seguridad
+- La variable `AZURE_AUDIENCE` pasó a llamarse **`AZURE_AUDIENCES`** (acepta una lista separada por coma: el GUID del backend y/o `api://cafeteria-backend`). Actualiza tu `.env`.
+- El conversor de roles del JWT ahora normaliza cada rol a MAYÚSCULAS sin prefijo en los 8 microservicios y en el BFF.
+- El BFF expone **`GET /api/me`** → `{ nombre, email, roles[] }`, leído directamente del JWT ya validado. Es la fuente de verdad del rol: el frontend ya no decodifica el token por su cuenta (`useUserRole`/`useAuthProfile` ahora llaman a este endpoint).
+- `docker-compose.yml` cambió el valor por defecto de `VITE_AUTH_DISABLED` a `false` — si quieres seguir en modo demo sin Azure, déjalo explícito en tu `.env` (`.env.example` ya lo trae en `true` junto con `SPRING_PROFILES_ACTIVE=noauth`).
+- El selector "Ver como" del NavBar ahora solo aparece con `VITE_AUTH_DISABLED=true` y muestra un banner **"MODO DEMO"**. En modo Azure real, si tu usuario tiene más de un rol asignado, aparece un selector de "perfil activo".
+- Se eliminaron los `console.log` de tokens/headers en `src/services/apiClient.js`.
+
+### Roles y permisos
+- Se corrigió el bug `@PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")` (12 instancias en 6 controllers) y se aplicó la matriz de roles completa de `docs/EP2_PLAN.md` sección 4 (`ADMIN, GERENTE, BARISTA, CAJERO, BODEGUERO`) vía `hasAnyAuthority` + una clase `security/Roles.java` de constantes en cada microservicio.
+
+### Capa de servicio, DTOs y validaciones
+`ms-productos`, `ms-inventario`, `ms-clientes`, `ms-empleados` y `ms-proveedores` ahora tienen capa `service/`, DTOs con Bean Validation (`dto/`) y un `GlobalExceptionHandler` (`exception/`) que devuelve `{timestamp, status, error, message, fieldErrors}` en 400/404/409/403. Los controllers ya no acceden al repositorio directamente.
+
+Novedades por módulo:
+- **ms-productos**: campos nuevos `disponible` e `imagenUrl`; `GET /api/productos?categoria=&disponible=`.
+- **ms-inventario**: nuevas entidades **`RecetaItem`** (`/api/recetas`) y **`MovimientoStock`** (`POST/GET /api/inventario/{id}/movimientos`, tipos `ENTRADA/SALIDA/AJUSTE`); `GET /api/inventario/alertas` (stock bajo mínimo).
+- **ms-clientes**: `POST /api/clientes/{id}/canje` para descontar puntos de fidelización.
+- **ms-empleados**: campo nuevo `fechaIngreso`; `PATCH /api/empleados/{id}/desactivar` (alternativa a borrar).
+- **ms-proveedores**: campo nuevo `rut` con validador propio `@Rut` (dígito verificador módulo 11) y `insumosQueProvee`.
+- **ms-pedidos, ms-pagos, ms-reportes**: solo se corrigió la matriz de `@PreAuthorize` y se agregó el `GlobalExceptionHandler`; la capa de servicio/DTOs completa de estos tres llega en una fase posterior (checkout público, máquina de estados, modelo de lectura por eventos).
+
+### Datos de prueba
+Cada uno de los 5 microservicios con capa de servicio completa trae un perfil `seed` (`SPRING_PROFILES_ACTIVE=noauth,seed`) que inserta datos de ejemplo si la tabla está vacía (los 12 productos con foto, insumos con una alerta de stock bajo ya activa, clientes, empleados de cada rol, proveedores con RUT válido).
+
+### Todos los microservicios pasaron de `application.properties` a `application.yml`
+Con un bloque `spring.security.oauth2.resourceserver.jwt` consistente en los 8 + BFF.
+
+Backend verificado con `./mvnw clean verify`: **102 tests, 0 fallos**. Frontend verificado con `npm run build`.
+

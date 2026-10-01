@@ -1,47 +1,38 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useMsal } from '@azure/msal-react';
-import { loginRequest } from '../auth/authConfig';
+import { loginRequest, apiBaseUrl } from '../auth/authConfig';
 
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === 'true';
 export const DEMO_ROLE_KEY = 'cg360_demo_role';
+const ACTIVE_ROLE_KEY = 'cg360_active_role';
 
-// Decodifica el payload de un JWT (base64url) sin librerias externas.
-// Solo lee el claim "roles", no valida firma (la validacion real la hace
-// el backend; aqui solo es para pintar la UI).
-function decodeRolesFromJwt(jwt) {
-  try {
-    const payload = jwt.split('.')[1];
-    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
-    const json = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-        .join('')
-    );
-    return JSON.parse(json).roles || [];
-  } catch {
-    return [];
+// Orden de preferencia cuando no hay un perfil activo guardado todavia.
+const PRIORIDAD_ROLES = ['ADMIN', 'GERENTE', 'BARISTA', 'CAJERO', 'BODEGUERO'];
+
+function elegirRolPorDefecto(roles) {
+  for (const candidato of PRIORIDAD_ROLES) {
+    if (roles.includes(candidato)) return candidato;
   }
-}
-
-function pickRole(roles) {
-  if (roles.includes('ADMIN')) return 'ADMIN';
-  if (roles.includes('BARISTA')) return 'BARISTA';
-  if (roles.includes('CAJERO')) return 'CAJERO';
   return roles[0] || null;
 }
 
-// En produccion (Azure real) el rol viene del claim "roles", pero ese claim
-// solo esta garantizado en el ACCESS TOKEN (el que se usa para llamar al
-// BFF/API Gateway), no en el ID token. Por eso hay que pedirlo con
-// acquireTokenSilent igual que hace apiClient.js, y decodificarlo.
-// En modo noauth no hay token, asi que se usa un selector de rol guardado
-// en localStorage solo para poder demostrar la segmentacion por rol en el
-// frontend sin tener Azure configurado.
-export function useUserRole() {
+// Fuente de verdad del rol = el backend. El BFF ya valido el JWT (firma,
+// issuer, audience) y expone en GET /api/me exactamente los roles que leyo
+// del claim "roles" del token — el frontend NUNCA decodifica el JWT por su
+// cuenta (ver docs/EP2_PLAN.md seccion 4).
+//
+// En modo noauth/demo (VITE_AUTH_DISABLED=true) no hay backend de verdad
+// detras del login, asi que se simula con el selector "Ver como" guardado en
+// localStorage (ver banner "MODO DEMO" en NavBar).
+//
+// Si el usuario tiene mas de un rol asignado en Azure, puede elegir cual usar
+// como "perfil activo"; esa eleccion se recuerda en localStorage mientras
+// siga siendo uno de los roles que trae el token.
+export function useAuthProfile() {
   const { instance, accounts } = useMsal();
-  const [role, setRole] = useState(() =>
-    authDisabled ? localStorage.getItem(DEMO_ROLE_KEY) || 'ADMIN' : null
+  const [roles, setRoles] = useState(() => (authDisabled ? [localStorage.getItem(DEMO_ROLE_KEY) || 'ADMIN'] : []));
+  const [activeRole, setActiveRoleState] = useState(() =>
+    authDisabled ? localStorage.getItem(DEMO_ROLE_KEY) || 'ADMIN' : localStorage.getItem(ACTIVE_ROLE_KEY)
   );
 
   useEffect(() => {
@@ -52,20 +43,50 @@ export function useUserRole() {
     let cancelled = false;
     instance
       .acquireTokenSilent({ ...loginRequest, account })
-      .then((response) => {
+      .then((response) =>
+        fetch(`${apiBaseUrl}/me`, {
+          headers: { Authorization: `Bearer ${response.accessToken}` },
+        })
+      )
+      .then((response) => (response.ok ? response.json() : { roles: [] }))
+      .then((data) => {
         if (cancelled) return;
-        setRole(pickRole(decodeRolesFromJwt(response.accessToken)));
+        const rolesRecibidos = data.roles || [];
+        setRoles(rolesRecibidos);
+        setActiveRoleState((actual) =>
+          actual && rolesRecibidos.includes(actual) ? actual : elegirRolPorDefecto(rolesRecibidos)
+        );
       })
       .catch(() => {
-        if (!cancelled) setRole(null);
+        if (!cancelled) {
+          setRoles([]);
+          setActiveRoleState(null);
+        }
       });
 
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance, accounts]);
 
-  return role;
+  const setActiveRole = useCallback((rol) => {
+    if (authDisabled) {
+      setDemoRole(rol);
+      window.location.reload();
+      return;
+    }
+    localStorage.setItem(ACTIVE_ROLE_KEY, rol);
+    setActiveRoleState(rol);
+  }, []);
+
+  return { roles, role: activeRole, setActiveRole };
+}
+
+// Atajo para los componentes que solo necesitan el rol activo (p.ej. para
+// filtrar que puede ver/hacer, no para dibujar el selector de perfil).
+export function useUserRole() {
+  return useAuthProfile().role;
 }
 
 export function setDemoRole(role) {

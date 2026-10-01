@@ -33,16 +33,21 @@ public class VentaDiariaController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
     }
 
-    // Solo roles autorizados (via claim "roles" del JWT) pueden crear/modificar/eliminar
+    // Matriz de roles (ver docs/EP2_PLAN.md seccion 4): ADMIN y GERENTE pueden
+    // registrar/corregir ventas diarias (en fases posteriores esto lo hara el
+    // consumidor de eventos de RabbitMQ, no un POST manual). CAJERO solo ve
+    // el dia (restriccion de visibilidad pendiente para una fase posterior).
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.reportes.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.reportes.security.Roles).GERENTE)")
     public ResponseEntity<VentaDiaria> crear(@Valid @RequestBody VentaDiaria ventaDiaria) {
         VentaDiaria guardado = repository.save(ventaDiaria);
         return ResponseEntity.status(HttpStatus.CREATED).body(guardado);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.reportes.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.reportes.security.Roles).GERENTE)")
     public ResponseEntity<VentaDiaria> actualizar(@PathVariable Long id, @Valid @RequestBody VentaDiaria datos) {
         return repository.findById(id).map(existente -> {
             datos.setId(existente.getId());
@@ -51,7 +56,7 @@ public class VentaDiariaController {
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.reportes.security.Roles).ADMIN)")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
         if (!repository.existsById(id)) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();

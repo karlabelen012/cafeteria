@@ -1,0 +1,36 @@
+spring:
+  application:
+    name: ms-productos
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cafeteria}
+    username: ${DB_USER:cafeteria}
+    password: ${DB_PASSWORD:cafeteria}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        default_schema: productos
+  # NOTA: issuer-uri / audiences / jwk-set-uri NO se configuran aqui bajo
+  # spring.security.oauth2.resourceserver.jwt.* — SecurityConfig.java arma su
+  # propio bean JwtDecoder leyendo AZURE_ISSUER_URI / AZURE_JWK_SET_URI /
+  # AZURE_AUDIENCES directamente, para decidir en Java (no via propiedades)
+  # si usar jwk-set-uri (tenants ciamlogin) o issuer-uri (Azure AD "clasico").
+  # Dejar esas propiedades aqui ademas del bean propio hace que Spring Boot
+  # intente armar su propio JwtDecoder tambien y falle por bean ambiguo.
+
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  security:
+    # Por defecto la seguridad esta activa. Para desactivarla en desarrollo
+    # local usa el perfil noauth (ver application-noauth.properties).
+    enabled: true

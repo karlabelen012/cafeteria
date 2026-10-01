@@ -1,7 +1,9 @@
 package cl.duoc.cafeteria.clientes.controller;
 
-import cl.duoc.cafeteria.clientes.model.Cliente;
-import cl.duoc.cafeteria.clientes.repository.ClienteRepository;
+import cl.duoc.cafeteria.clientes.dto.CanjeRequest;
+import cl.duoc.cafeteria.clientes.dto.ClienteRequest;
+import cl.duoc.cafeteria.clientes.dto.ClienteResponse;
+import cl.duoc.cafeteria.clientes.service.ClienteService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,49 +16,55 @@ import java.util.List;
 @RequestMapping("/api/clientes")
 public class ClienteController {
 
-    private final ClienteRepository repository;
+    private final ClienteService service;
 
-    public ClienteController(ClienteRepository repository) {
-        this.repository = repository;
+    public ClienteController(ClienteService service) {
+        this.service = service;
     }
 
-    // Cualquier usuario autenticado (con un JWT valido) puede listar y consultar
+    // Clientes ya no es publico: cualquier usuario autenticado (JWT valido) puede
+    // listar y consultar (ver docs/EP2_PLAN.md seccion 5). La exigencia de
+    // autenticacion la impone la cadena de filtros en config/SecurityConfig.
     @GetMapping
-    public List<Cliente> listar() {
-        return repository.findAll();
+    public List<ClienteResponse> listar() {
+        return service.listar();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Cliente> obtener(@PathVariable Long id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    public ClienteResponse obtener(@PathVariable Long id) {
+        return service.obtener(id);
     }
 
-    // Solo roles autorizados (via claim "roles" del JWT) pueden crear/modificar/eliminar
+    // Matriz de roles (ver docs/EP2_PLAN.md seccion 4): ADMIN = CRUD;
+    // GERENTE = ver; BARISTA = ver; CAJERO = ver, crear, editar.
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Cliente> crear(@Valid @RequestBody Cliente cliente) {
-        Cliente guardado = repository.save(cliente);
-        return ResponseEntity.status(HttpStatus.CREATED).body(guardado);
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.clientes.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.clientes.security.Roles).CAJERO)")
+    public ResponseEntity<ClienteResponse> crear(@Valid @RequestBody ClienteRequest request) {
+        ClienteResponse creado = service.crear(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(creado);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Cliente> actualizar(@PathVariable Long id, @Valid @RequestBody Cliente datos) {
-        return repository.findById(id).map(existente -> {
-            datos.setId(existente.getId());
-            return ResponseEntity.ok(repository.save(datos));
-        }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.clientes.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.clientes.security.Roles).CAJERO)")
+    public ClienteResponse actualizar(@PathVariable Long id, @Valid @RequestBody ClienteRequest request) {
+        return service.actualizar(id, request);
     }
 
+    // Solo ADMIN puede eliminar clientes.
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.clientes.security.Roles).ADMIN)")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        if (!repository.existsById(id)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        repository.deleteById(id);
+        service.eliminar(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // Canje de puntos de fidelizacion: lo gestionan dia a dia ADMIN y CAJERO.
+    @PostMapping("/{id}/canje")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.clientes.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.clientes.security.Roles).CAJERO)")
+    public ClienteResponse canjear(@PathVariable Long id, @Valid @RequestBody CanjeRequest request) {
+        return service.canjearPuntos(id, request.puntos());
     }
 }

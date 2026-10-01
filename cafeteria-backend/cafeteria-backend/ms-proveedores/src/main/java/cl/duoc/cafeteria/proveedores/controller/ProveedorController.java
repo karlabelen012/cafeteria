@@ -1,7 +1,8 @@
 package cl.duoc.cafeteria.proveedores.controller;
 
-import cl.duoc.cafeteria.proveedores.model.Proveedor;
-import cl.duoc.cafeteria.proveedores.repository.ProveedorRepository;
+import cl.duoc.cafeteria.proveedores.dto.ProveedorRequest;
+import cl.duoc.cafeteria.proveedores.dto.ProveedorResponse;
+import cl.duoc.cafeteria.proveedores.service.ProveedorService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,53 +11,56 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Matriz de roles (ver docs/EP2_PLAN.md seccion 4):
+ * ADMIN: CRUD completo. GERENTE: solo ver. BODEGUERO: ver, crear y editar.
+ * BARISTA/CAJERO: sin acceso a este modulo.
+ */
 @RestController
 @RequestMapping("/api/proveedores")
 public class ProveedorController {
 
-    private final ProveedorRepository repository;
+    private final ProveedorService service;
 
-    public ProveedorController(ProveedorRepository repository) {
-        this.repository = repository;
+    public ProveedorController(ProveedorService service) {
+        this.service = service;
     }
 
-    // Cualquier usuario autenticado (con un JWT valido) puede listar y consultar
     @GetMapping
-    public List<Proveedor> listar() {
-        return repository.findAll();
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.proveedores.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.proveedores.security.Roles).GERENTE, "
+            + "T(cl.duoc.cafeteria.proveedores.security.Roles).BODEGUERO)")
+    public List<ProveedorResponse> listar() {
+        return service.listar();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Proveedor> obtener(@PathVariable Long id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.proveedores.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.proveedores.security.Roles).GERENTE, "
+            + "T(cl.duoc.cafeteria.proveedores.security.Roles).BODEGUERO)")
+    public ProveedorResponse obtener(@PathVariable Long id) {
+        return service.obtener(id);
     }
 
-    // Solo roles autorizados (via claim "roles" del JWT) pueden crear/modificar/eliminar
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Proveedor> crear(@Valid @RequestBody Proveedor proveedor) {
-        Proveedor guardado = repository.save(proveedor);
-        return ResponseEntity.status(HttpStatus.CREATED).body(guardado);
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.proveedores.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.proveedores.security.Roles).BODEGUERO)")
+    public ResponseEntity<ProveedorResponse> crear(@Valid @RequestBody ProveedorRequest request) {
+        ProveedorResponse creado = service.crear(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(creado);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Proveedor> actualizar(@PathVariable Long id, @Valid @RequestBody Proveedor datos) {
-        return repository.findById(id).map(existente -> {
-            datos.setId(existente.getId());
-            return ResponseEntity.ok(repository.save(datos));
-        }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.proveedores.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.proveedores.security.Roles).BODEGUERO)")
+    public ProveedorResponse actualizar(@PathVariable Long id, @Valid @RequestBody ProveedorRequest request) {
+        return service.actualizar(id, request);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.proveedores.security.Roles).ADMIN)")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        if (!repository.existsById(id)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        repository.deleteById(id);
+        service.eliminar(id);
         return ResponseEntity.noContent().build();
     }
 }

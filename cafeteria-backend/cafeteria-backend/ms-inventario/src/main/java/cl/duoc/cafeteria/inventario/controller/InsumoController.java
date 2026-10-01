@@ -1,7 +1,8 @@
 package cl.duoc.cafeteria.inventario.controller;
 
-import cl.duoc.cafeteria.inventario.model.Insumo;
-import cl.duoc.cafeteria.inventario.repository.InsumoRepository;
+import cl.duoc.cafeteria.inventario.dto.InsumoRequest;
+import cl.duoc.cafeteria.inventario.dto.InsumoResponse;
+import cl.duoc.cafeteria.inventario.service.InsumoService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -10,53 +11,67 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * Solo traduce HTTP <-> DTO <-> InsumoService. Sin logica de negocio (ver
+ * docs/EP2_PLAN.md seccion 3.7 / seccion 4, matriz de roles "Inventario
+ * (insumos, recetas, movimientos)": ADMIN=CRUD, GERENTE=ver, BARISTA=ver,
+ * BODEGUERO=crear/editar/movimientos, CAJERO=sin acceso).
+ */
 @RestController
 @RequestMapping("/api/inventario")
 public class InsumoController {
 
-    private final InsumoRepository repository;
+    private final InsumoService service;
 
-    public InsumoController(InsumoRepository repository) {
-        this.repository = repository;
+    public InsumoController(InsumoService service) {
+        this.service = service;
     }
 
-    // Cualquier usuario autenticado (con un JWT valido) puede listar y consultar
     @GetMapping
-    public List<Insumo> listar() {
-        return repository.findAll();
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.inventario.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).GERENTE, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BARISTA, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BODEGUERO)")
+    public List<InsumoResponse> listar() {
+        return service.listar();
+    }
+
+    @GetMapping("/alertas")
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.inventario.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).GERENTE, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BARISTA, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BODEGUERO)")
+    public List<InsumoResponse> alertas() {
+        return service.alertas();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Insumo> obtener(@PathVariable Long id) {
-        return repository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.inventario.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).GERENTE, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BARISTA, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BODEGUERO)")
+    public ResponseEntity<InsumoResponse> obtener(@PathVariable Long id) {
+        return ResponseEntity.ok(service.obtener(id));
     }
 
-    // Solo roles autorizados (via claim "roles" del JWT) pueden crear/modificar/eliminar
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Insumo> crear(@Valid @RequestBody Insumo insumo) {
-        Insumo guardado = repository.save(insumo);
-        return ResponseEntity.status(HttpStatus.CREATED).body(guardado);
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.inventario.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BODEGUERO)")
+    public ResponseEntity<InsumoResponse> crear(@Valid @RequestBody InsumoRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.crear(request));
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ADMIN')")
-    public ResponseEntity<Insumo> actualizar(@PathVariable Long id, @Valid @RequestBody Insumo datos) {
-        return repository.findById(id).map(existente -> {
-            datos.setId(existente.getId());
-            return ResponseEntity.ok(repository.save(datos));
-        }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND).build());
+    @PreAuthorize("hasAnyAuthority(T(cl.duoc.cafeteria.inventario.security.Roles).ADMIN, "
+            + "T(cl.duoc.cafeteria.inventario.security.Roles).BODEGUERO)")
+    public ResponseEntity<InsumoResponse> actualizar(@PathVariable Long id, @Valid @RequestBody InsumoRequest request) {
+        return ResponseEntity.ok(service.actualizar(id, request));
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PreAuthorize("hasAuthority(T(cl.duoc.cafeteria.inventario.security.Roles).ADMIN)")
     public ResponseEntity<Void> eliminar(@PathVariable Long id) {
-        if (!repository.existsById(id)) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-        }
-        repository.deleteById(id);
+        service.eliminar(id);
         return ResponseEntity.noContent().build();
     }
 }

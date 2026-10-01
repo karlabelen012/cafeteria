@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useMsal } from '@azure/msal-react';
 import CoffeeIcon from './CoffeeIcon';
-import { useUserRole, setDemoRole } from '../hooks/useUserRole';
+import { useAuthProfile, setDemoRole } from '../hooks/useUserRole';
 
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
@@ -34,10 +34,11 @@ const GROUPS = [
 export default function NavBar() {
   const { instance } = useMsal();
   const location = useLocation();
-  const role = useUserRole();
+  const { roles, role, setActiveRole } = useAuthProfile();
 
   return (
     <div className="navbar-wrap">
+      {authDisabled && <div className="demo-banner">MODO DEMO — el rol se simula, no viene de Azure</div>}
       <header className="navbar">
         <Link to="/portal" className="navbar__brand">
           <CoffeeIcon />
@@ -49,15 +50,28 @@ export default function NavBar() {
             <select
               className="role-switcher"
               value={role}
-              onChange={(e) => {
-                setDemoRole(e.target.value);
-                window.location.reload();
-              }}
+              onChange={(e) => setActiveRole(e.target.value)}
               title="Simulador de rol (solo modo noauth, sin Azure real)"
             >
               <option value="ADMIN">Ver como: ADMIN</option>
+              <option value="GERENTE">Ver como: GERENTE</option>
               <option value="BARISTA">Ver como: BARISTA</option>
               <option value="CAJERO">Ver como: CAJERO</option>
+              <option value="BODEGUERO">Ver como: BODEGUERO</option>
+            </select>
+          )}
+          {!authDisabled && roles.length > 1 && (
+            <select
+              className="role-switcher"
+              value={role || ''}
+              onChange={(e) => setActiveRole(e.target.value)}
+              title="Elegir perfil activo (tienes más de un rol asignado)"
+            >
+              {roles.map((r) => (
+                <option key={r} value={r}>
+                  Perfil: {r}
+                </option>
+              ))}
             </select>
           )}
           <Link to="/" className="btn btn-ghost">

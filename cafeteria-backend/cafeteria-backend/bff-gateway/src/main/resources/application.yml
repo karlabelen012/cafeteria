@@ -44,13 +44,10 @@ spring:
       # un "globalcors" separado no alcanza a agregar los headers cuando
       # Security corta la respuesta con 401/403 antes de llegar a el.
 
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          issuer-uri: ${AZURE_ISSUER_URI:https://login.microsoftonline.com/<TENANT_ID>/v2.0}
-          audiences:
-            - ${AZURE_AUDIENCE:api://cafeteria-backend}
+  # NOTA: issuer-uri / audiences / jwk-set-uri NO se configuran aqui bajo
+  # spring.security.oauth2.resourceserver.jwt.* — SecurityConfig.java arma su
+  # propio bean ReactiveJwtDecoder leyendo AZURE_ISSUER_URI / AZURE_JWK_SET_URI /
+  # AZURE_AUDIENCES directamente (ver el mismo comentario en cada ms-*/application.yml).
 
 management:
   endpoints:
