@@ -1,4 +1,5 @@
-# Imagen de desarrollo/demo para el frontend React + Vite.
+# Imagen de produccion para el frontend React + Vite: build estatico servido
+# por nginx (no "vite preview", ver docs/EP2_PLAN.md seccion 8.2).
 # Las variables VITE_* se "hornean" en el bundle en tiempo de build (asi
 # funciona Vite), por eso se reciben como build-args en vez de variables de
 # entorno normales de contenedor (ver docker-compose.yml en la raiz del repo).
@@ -29,5 +30,17 @@ ENV VITE_AUTH_DISABLED=$VITE_AUTH_DISABLED \
 COPY . .
 RUN npm run build
 
-EXPOSE 4200
-CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "4200"]
+# ---- Produccion: nginx sirviendo el build estatico ----
+# docker-entrypoint.sh elige entre nginx/http.conf (sin certificado, solo
+# puerto 80) y nginx/https.conf (certificado montado en /etc/nginx/certs:
+# 443 + redireccion desde 80) segun lo que encuentre montado en runtime.
+FROM nginx:1.27-alpine
+RUN rm -f /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx/http.conf /etc/nginx/templates/http.conf
+COPY nginx/https.conf /etc/nginx/templates/https.conf
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+EXPOSE 80 443
+ENTRYPOINT ["/docker-entrypoint.sh"]

@@ -9,24 +9,33 @@
 #     completar AZURE_ISSUER_URI / AZURE_AUDIENCES / AZURE_JWK_SET_URI (solo
 #     tenants ciamlogin) / VITE_AZURE_* en tu .env
 #     con los datos reales de tus App Registrations.
-version: "3.8"
 
 x-backend-common: &backend-common
   build:
     context: ./cafeteria-backend/cafeteria-backend
+  restart: unless-stopped
+  # Limite de memoria por contenedor: 9 JVM sueltas en una instancia pequena
+  # (p.ej. la EC2 t3.large de la Fase 6) se matan entre si por OOM si no se
+  # les pone techo (ver docs/EP2_PLAN.md seccion 8.1).
+  mem_limit: 512m
   environment:
     SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE-noauth}
+    JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC"
     DB_URL: jdbc:postgresql://postgres:5432/cafeteria
     DB_USER: cafeteria
     DB_PASSWORD: cafeteria
     AZURE_ISSUER_URI: ${AZURE_ISSUER_URI:-https://login.microsoftonline.com/<TENANT_ID>/v2.0}
     AZURE_AUDIENCES: ${AZURE_AUDIENCES:-api://cafeteria-backend}
     AZURE_JWK_SET_URI: ${AZURE_JWK_SET_URI:-}
+    RABBITMQ_ADDRESSES: rabbitmq-1:5672,rabbitmq-2:5672,rabbitmq-3:5672
+    RABBITMQ_USER: ${RABBITMQ_USER:-cafeteria}
+    RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-cafeteria}
 
 services:
   postgres:
     image: postgres:16-alpine
     container_name: cafeteria-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: cafeteria
       POSTGRES_USER: cafeteria
@@ -42,6 +51,81 @@ services:
       timeout: 5s
       retries: 5
 
+  # Cluster RabbitMQ de 3 nodos (ver docs/EP2_PLAN.md seccion 3 / Fase 2).
+  # Peer discovery classic_config via ./rabbitmq/rabbitmq.conf (montado en
+  # los 3). Solo rabbitmq-1 expone el puerto AMQP 5672 al host: los
+  # microservicios se conectan por la red interna de Docker a los 3 nodos
+  # (RABBITMQ_ADDRESSES), nunca necesitan el puerto publicado.
+  rabbitmq-1:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq-1
+    hostname: rabbitmq-1
+    restart: unless-stopped
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-cafeteria_erlang_cookie}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-cafeteria}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-cafeteria}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_1_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  rabbitmq-2:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq-2
+    hostname: rabbitmq-2
+    restart: unless-stopped
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-cafeteria_erlang_cookie}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-cafeteria}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-cafeteria}
+    ports:
+      - "15673:15672"
+    volumes:
+      - rabbitmq_2_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      rabbitmq-1:
+        condition: service_healthy
+
+  rabbitmq-3:
+    image: rabbitmq:3.13-management
+    container_name: rabbitmq-3
+    hostname: rabbitmq-3
+    restart: unless-stopped
+    environment:
+      RABBITMQ_ERLANG_COOKIE: ${RABBITMQ_ERLANG_COOKIE:-cafeteria_erlang_cookie}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-cafeteria}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-cafeteria}
+    ports:
+      - "15674:15672"
+    volumes:
+      - rabbitmq_3_data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    depends_on:
+      rabbitmq-1:
+        condition: service_healthy
+
   ms-productos:
     <<: *backend-common
     build:
@@ -55,6 +139,8 @@ services:
       - ms_productos_data:/app/data
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq-1:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8081/actuator/health"]
@@ -77,6 +163,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq-1:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8082/actuator/health"]
       interval: 10s
@@ -97,6 +185,8 @@ services:
       - ms_pedidos_data:/app/data
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq-1:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8083/actuator/health"]
@@ -119,6 +209,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq-1:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8084/actuator/health"]
       interval: 10s
@@ -139,6 +231,8 @@ services:
       - ms_pagos_data:/app/data
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq-1:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8085/actuator/health"]
@@ -161,6 +255,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq-1:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8086/actuator/health"]
       interval: 10s
@@ -181,6 +277,8 @@ services:
       - ms_proveedores_data:/app/data
     depends_on:
       postgres:
+        condition: service_healthy
+      rabbitmq-1:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8087/actuator/health"]
@@ -203,6 +301,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq-1:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8088/actuator/health"]
       interval: 10s
@@ -221,6 +321,7 @@ services:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE-noauth}
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC"
       AZURE_ISSUER_URI: ${AZURE_ISSUER_URI:-https://login.microsoftonline.com/<TENANT_ID>/v2.0}
       AZURE_AUDIENCES: ${AZURE_AUDIENCES:-api://cafeteria-backend}
       AZURE_JWK_SET_URI: ${AZURE_JWK_SET_URI:-}
@@ -263,13 +364,21 @@ services:
         VITE_AZURE_REDIRECT_URI: ${VITE_AZURE_REDIRECT_URI:-http://localhost:4200}
         VITE_API_SCOPES: ${VITE_API_SCOPES:-api://cafeteria-backend/pedidos.read,api://cafeteria-backend/pedidos.write}
     container_name: cafeteria-frontend
+    restart: unless-stopped
+    # nginx escucha 80/443 dentro del contenedor (ver Dockerfile); en local
+    # se mapea al 4200 de siempre para no romper las URLs ya documentadas.
+    # Para HTTPS local, monta un volumen en /etc/nginx/certs con
+    # fullchain.pem + privkey.pem y publica tambien el puerto 443.
     ports:
-      - "4200:4200"
+      - "4200:80"
     depends_on:
       - bff-gateway
 
 volumes:
   cafeteria_pgdata:
+  rabbitmq_1_data:
+  rabbitmq_2_data:
+  rabbitmq_3_data:
   ms_productos_data:
   ms_inventario_data:
   ms_pedidos_data:

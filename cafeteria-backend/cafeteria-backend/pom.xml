@@ -22,6 +22,7 @@
     </properties>
 
     <modules>
+        <module>cafeteria-common</module>
         <module>ms-productos</module>
         <module>ms-inventario</module>
         <module>ms-pedidos</module>

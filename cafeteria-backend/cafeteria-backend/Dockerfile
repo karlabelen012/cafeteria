@@ -13,6 +13,7 @@ WORKDIR /workspace
 COPY pom.xml .
 COPY mvnw .
 COPY .mvn .mvn
+COPY cafeteria-common/pom.xml cafeteria-common/pom.xml
 COPY ms-productos/pom.xml ms-productos/pom.xml
 COPY ms-inventario/pom.xml ms-inventario/pom.xml
 COPY ms-pedidos/pom.xml ms-pedidos/pom.xml
@@ -24,7 +25,9 @@ COPY ms-reportes/pom.xml ms-reportes/pom.xml
 COPY bff-gateway/pom.xml bff-gateway/pom.xml
 RUN chmod +x mvnw && ./mvnw -q -B -pl ${MODULE} -am dependency:go-offline
 
-# Ahora si copiamos el codigo fuente del modulo pedido y lo empaquetamos.
+# Ahora si copiamos el codigo fuente del modulo pedido (y el de cafeteria-common,
+# del que todos los microservicios dependen) y lo empaquetamos.
+COPY cafeteria-common/src cafeteria-common/src
 COPY ${MODULE}/src ${MODULE}/src
 RUN ./mvnw -q -B -pl ${MODULE} -am package -DskipTests
 

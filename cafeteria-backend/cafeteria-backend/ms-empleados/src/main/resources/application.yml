@@ -19,6 +19,19 @@ spring:
   # si usar jwk-set-uri (tenants ciamlogin) o issuer-uri (Azure AD "clasico").
   # Dejar esas propiedades aqui ademas del bean propio hace que Spring Boot
   # intente armar su propio JwtDecoder tambien y falle por bean ambiguo.
+  rabbitmq:
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${RABBITMQ_USER:cafeteria}
+    password: ${RABBITMQ_PASSWORD:cafeteria}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        prefetch: 5
+        default-requeue-rejected: false
 
 server:
   port: 8086

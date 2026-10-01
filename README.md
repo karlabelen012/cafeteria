@@ -477,3 +477,48 @@ Con un bloque `spring.security.oauth2.resourceserver.jwt` consistente en los 8 +
 
 Backend verificado con `./mvnw clean verify`: **102 tests, 0 fallos**. Frontend verificado con `npm run build`.
 
+## 12. EP2 — Fase 2: cluster RabbitMQ local + estabilidad
+
+### Cluster RabbitMQ (3 nodos)
+`docker-compose.yml` levanta `rabbitmq-1`, `rabbitmq-2` y `rabbitmq-3` (imagen `rabbitmq:3.13-management`), con
+peer discovery `classic_config` (`rabbitmq/rabbitmq.conf`, montado en los 3) — al arrancar juntos con datos
+vacíos, forman el cluster solos. Verificado manualmente: los 3 nodos aparecen como "Running Nodes" en
+`cluster_status` y un microservicio (`ms-productos`) se conecta correctamente a los 3 vía `RABBITMQ_ADDRESSES`.
+
+```bash
+docker compose up -d --build          # levanta todo, incluido el cluster
+docker exec rabbitmq-1 rabbitmqctl cluster_status   # confirma los 3 nodos
+```
+
+UI de administración: `http://localhost:15672` (nodo 1), `http://localhost:15673` (nodo 2),
+`http://localhost:15674` (nodo 3) — usuario/clave en `.env` (`RABBITMQ_USER`/`RABBITMQ_PASSWORD`,
+por defecto `cafeteria`/`cafeteria`). Solo el nodo 1 expone el puerto AMQP 5672 al host; los microservicios
+usan la red interna de Docker para llegar a los 3.
+
+### Módulo `cafeteria-common`
+Nuevo módulo Maven (librería, no una app Spring Boot) con los eventos de dominio que viajarán por RabbitMQ en
+la Fase 3 (`PedidoCreadoEvent`, `PagoProcesadoEvent`, `StockBajoEvent`, `PedidoEstadoActualizadoEvent`,
+`ItemEvent`), las excepciones `NonRecoverableMessageException`/`RecoverableMessageException` y el helper
+`AckHandler` (ack / nack sin reintento / nack con reintento). Los 8 microservicios ya lo tienen como
+dependencia, además de `spring-boot-starter-amqp` y el bloque `spring.rabbitmq.*` (conexión, no las colas —
+eso es de la Fase 3) en su `application.yml`.
+
+### Estabilidad (`docker-compose.yml`)
+- `restart: unless-stopped` en todos los servicios.
+- `mem_limit: 512m` + `JAVA_TOOL_OPTIONS` (heap acotado) en cada JVM, para que 9+ contenedores Java no se
+  maten entre sí por falta de memoria en una instancia pequeña.
+- Los 8 microservicios esperan a `rabbitmq-1: service_healthy` además de `postgres`.
+- En `noauth`/desarrollo local sin Docker, `RABBITMQ_ADDRESSES` cae a `localhost:5672` por defecto — sigue
+  funcionando con un solo RabbitMQ local (sin cluster).
+
+### Frontend: imagen de producción con nginx
+El `Dockerfile` del frontend ahora es multi-stage: build de Vite + una imagen `nginx:1.27-alpine` que sirve
+el estático (ya no `vite preview`). `docker-entrypoint.sh` elige la config de nginx en el arranque:
+- Sin certificado montado en `/etc/nginx/certs` → solo HTTP (puerto 80), con `try_files` para que las rutas
+  de React Router no den 404 al recargar la página.
+- Con `fullchain.pem`/`privkey.pem` montados ahí → HTTPS en 443 + redirección automática desde 80 (lo que
+  usará la Fase 6 en la EC2, con el certificado que genera Terraform).
+
+En local, `docker-compose.yml` sigue publicando el frontend en `http://localhost:4200` (mapeado al puerto 80
+del contenedor).
+

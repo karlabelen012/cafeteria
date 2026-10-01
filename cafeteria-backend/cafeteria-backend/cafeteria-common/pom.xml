@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>cl.duoc.cafeteria</groupId>
+        <artifactId>cafeteria-backend</artifactId>
+        <version>1.0.0</version>
+    </parent>
+
+    <artifactId>cafeteria-common</artifactId>
+    <packaging>jar</packaging>
+    <name>cafeteria-common</name>
+    <description>
+        Libreria compartida por los microservicios: eventos de dominio que viajan
+        por RabbitMQ, excepciones de mensajeria (NonRecoverable/Recoverable) y un
+        helper de ACK/NACK (ver docs/EP2_PLAN.md seccion 3.7). NO es una aplicacion
+        Spring Boot (no tiene el plugin de repackage).
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.amqp</groupId>
+            <artifactId>spring-rabbit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
