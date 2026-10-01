@@ -529,6 +529,103 @@ a {
   margin-top: 6px;
 }
 
+/* ---------- KPI cards (dashboard de reportes) ---------- */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.kpi-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  background: var(--color-warning-bg);
+  color: var(--color-accent-dark);
+  margin-bottom: 14px;
+}
+
+.kpi-card__label {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-card__value {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  color: var(--color-coffee-900);
+  margin-top: 6px;
+}
+
+.kpi-card__delta {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.kpi-card__delta--up {
+  color: var(--color-success-text);
+}
+
+.kpi-card__delta--down {
+  color: var(--color-error);
+}
+
+.kpi-card__caption {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+/* ---------- Dashboard charts ---------- */
+.dashboard-charts {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 760px) {
+  .dashboard-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  padding: 20px 20px 8px;
+}
+
+.chart-panel__title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: var(--color-coffee-900);
+  margin-bottom: 8px;
+}
+
 /* ---------- Module nav (dashboard section switcher) ---------- */
 .module-nav {
   display: flex;
