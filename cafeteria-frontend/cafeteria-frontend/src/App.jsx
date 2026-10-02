@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import Store from './pages/Store.jsx';
 import Checkout from './pages/Checkout.jsx';
-import OrderStatus from './pages/OrderStatus.jsx';
+import Seguimiento from './pages/Seguimiento.jsx';
 import StaffLogin from './pages/StaffLogin.jsx';
 import DashboardLayout from './layouts/DashboardLayout.jsx';
 import DashboardHome from './pages/dashboard/DashboardHome.jsx';
@@ -29,7 +29,7 @@ export default function App() {
       {/* Tienda publica: sin login, para clientes (ver docs/EP2_PLAN.md seccion 6.1) */}
       <Route path="/" element={<Store />} />
       <Route path="/checkout" element={<Checkout />} />
-      <Route path="/pedido/:id" element={<OrderStatus />} />
+      <Route path="/seguimiento/:codigo" element={<Seguimiento />} />
       <Route path="/login" element={<StaffLogin />} />
 
       {/* Dashboard de staff: requiere sesion (Azure Entra ID / MSAL), layout

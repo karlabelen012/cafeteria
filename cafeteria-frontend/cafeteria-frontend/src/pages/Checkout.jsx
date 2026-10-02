@@ -4,6 +4,11 @@ import { useApiClient } from '../services/apiClient';
 import { useCart } from '../context/CartContext';
 import CoffeeIcon from '../components/CoffeeIcon';
 
+const METODOS = [
+  { value: 'DEBITO', label: 'Débito' },
+  { value: 'CREDITO', label: 'Crédito' },
+];
+
 export default function Checkout() {
   const { callApi } = useApiClient();
   const { items, totalPrecio, clear } = useCart();
@@ -12,10 +17,8 @@ export default function Checkout() {
   const [form, setForm] = useState({
     nombre: '',
     email: '',
-    telefono: '',
+    metodo: 'DEBITO',
     numeroTarjeta: '',
-    vencimiento: '',
-    cvv: '',
   });
   const [procesando, setProcesando] = useState(false);
   const [error, setError] = useState('');
@@ -49,76 +52,35 @@ export default function Checkout() {
     setError('');
     setProcesando(true);
     try {
-      // 1) Buscar (o crear) el cliente por email — así queda registrado con
-      // sus puntos de fidelización en ms-clientes.
-      const clientes = await callApi('/clientes');
-      let cliente = clientes.find((c) => c.email?.toLowerCase() === form.email.toLowerCase());
-      if (!cliente) {
-        cliente = await callApi('/clientes', {
-          method: 'POST',
-          body: JSON.stringify({
-            nombre: form.nombre,
-            email: form.email,
-            telefono: form.telefono,
-            puntosFidelizacion: 0,
-          }),
-        });
-      }
-
-      // 2) Crear el pedido en ms-pedidos (sin empleado asignado: lo toma un
-      // barista cuando lo prepare).
-      const pedido = await callApi('/pedidos', {
+      // Un solo endpoint atomico: ms-pedidos crea el pedido en PENDIENTE_PAGO,
+      // resuelve precios contra ms-productos (nunca confia en lo que manda el
+      // navegador) y publica pedido.creado para que ms-pagos simule la
+      // pasarela de forma asincrona (ver docs/EP2_PLAN.md seccion 3 y 5).
+      const { codigoSeguimiento } = await callApi('/public/checkout', {
         method: 'POST',
         body: JSON.stringify({
-          clienteId: cliente.id,
-          empleadoId: null,
-          estado: 'Pendiente',
-          total: totalPrecio,
+          cliente: { nombre: form.nombre, email: form.email },
+          items: items.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
+          pago: {
+            metodo: form.metodo,
+            // Solo digitos: el backend nunca acepta espacios/guiones y nunca
+            // guarda el numero completo (solo usa los ultimos 4 y descarta
+            // el resto, ver docs/EP2_PLAN.md seccion 2 y 5).
+            numeroTarjeta: form.numeroTarjeta.replace(/\D/g, ''),
+          },
         }),
-      });
-
-      // 3) Registrar cada linea del carrito como item del pedido.
-      for (const item of items) {
-        await callApi(`/pedidos/${pedido.id}/items`, {
-          method: 'POST',
-          body: JSON.stringify({
-            productoId: item.productoId,
-            cantidad: item.cantidad,
-            precioUnitario: item.precio,
-          }),
-        });
-      }
-
-      // 4) Simular el pago: la tarjeta nunca sale del navegador ni se valida
-      // contra nada real, solo se simula el "procesando..." y se guarda el
-      // resultado en ms-pagos.
-      await new Promise((resolve) => setTimeout(resolve, 1300));
-      await callApi('/pagos', {
-        method: 'POST',
-        body: JSON.stringify({
-          pedidoId: pedido.id,
-          monto: totalPrecio,
-          metodoPago: 'Tarjeta (simulada)',
-          estado: 'Aprobado',
-        }),
-      });
-
-      // 5) El pago se aprobó: el pedido pasa a preparación.
-      await callApi(`/pedidos/${pedido.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...pedido, estado: 'En preparación' }),
       });
 
       clear();
       try {
-        localStorage.setItem('cg360_ultimo_pedido', String(pedido.id));
+        localStorage.setItem('cg360_ultimo_pedido', codigoSeguimiento);
       } catch {
         // no bloquea el flujo si localStorage no esta disponible
       }
-      navigate(`/pedido/${pedido.id}`);
+      navigate(`/seguimiento/${codigoSeguimiento}`);
     } catch (err) {
       console.error(err);
-      setError('No se pudo procesar el pedido. Revisa que el backend esté corriendo e inténtalo de nuevo.');
+      setError(err.message || 'No se pudo procesar el pedido. Inténtalo de nuevo.');
     } finally {
       setProcesando(false);
     }
@@ -146,47 +108,42 @@ export default function Checkout() {
               Email
               <input required type="email" value={form.email} onChange={update('email')} />
             </label>
-            <label>
-              Teléfono
-              <input required value={form.telefono} onChange={update('telefono')} />
-            </label>
 
             <h3>Pago con tarjeta</h3>
             <p className="checkout-form__note">
-              Esto es una simulación para fines académicos: no se procesa ni se envía a ninguna
-              pasarela de pago real.
+              Simulación para fines académicos: no se procesa contra ninguna pasarela real, y nunca se
+              guarda el número completo de la tarjeta.
             </p>
+            <label>
+              Método
+              <select value={form.metodo} onChange={update('metodo')}>
+                {METODOS.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label>
               Número de tarjeta
               <input
                 required
                 inputMode="numeric"
                 maxLength={19}
-                placeholder="4111 1111 1111 1111"
+                placeholder="4111111111111111"
                 value={form.numeroTarjeta}
                 onChange={update('numeroTarjeta')}
               />
             </label>
-            <div className="checkout-form__row">
-              <label>
-                Vencimiento
-                <input
-                  required
-                  placeholder="MM/AA"
-                  value={form.vencimiento}
-                  onChange={update('vencimiento')}
-                />
-              </label>
-              <label>
-                CVV
-                <input required inputMode="numeric" maxLength={4} value={form.cvv} onChange={update('cvv')} />
-              </label>
-            </div>
+            <p className="checkout-form__note">
+              Demo: termina en <code>0000</code> → pago rechazado · <code>9999</code> → error transitorio
+              (reintenta y cae a la DLQ) · <code>8888</code> → error directo a la DLQ.
+            </p>
 
             {error && <div className="alert alert-error">{error}</div>}
 
             <button className="btn btn-primary" type="submit" disabled={procesando}>
-              {procesando ? 'Procesando pago...' : `Pagar $${totalPrecio}`}
+              {procesando ? 'Enviando pedido...' : `Pagar $${totalPrecio}`}
             </button>
           </form>
 

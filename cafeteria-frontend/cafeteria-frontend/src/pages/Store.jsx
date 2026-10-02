@@ -86,7 +86,7 @@ export default function Store() {
         </div>
         <div className="store-header__actions">
           {ultimoPedido && (
-            <Link to={`/pedido/${ultimoPedido}`} className="btn btn-ghost">
+            <Link to={`/seguimiento/${ultimoPedido}`} className="btn btn-ghost">
               Mi pedido
             </Link>
           )}
