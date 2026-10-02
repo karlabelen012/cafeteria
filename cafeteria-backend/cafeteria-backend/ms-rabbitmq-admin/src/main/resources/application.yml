@@ -1,0 +1,63 @@
+spring:
+  application:
+    name: ms-rabbitmq-admin
+  rabbitmq:
+    addresses: ${RABBITMQ_ADDRESSES:localhost:5672}
+    username: ${RABBITMQ_USER:cafeteria}
+    password: ${RABBITMQ_PASSWORD:cafeteria}
+  # NOTA: issuer-uri / audiences / jwk-set-uri NO se configuran aqui bajo
+  # spring.security.oauth2.resourceserver.jwt.* — SecurityConfig.java arma su
+  # propio bean JwtDecoder leyendo AZURE_ISSUER_URI / AZURE_JWK_SET_URI /
+  # AZURE_AUDIENCES directamente, para decidir en Java (no via propiedades)
+  # si usar jwk-set-uri (tenants ciamlogin) o issuer-uri (Azure AD "clasico").
+  # Dejar esas propiedades aqui ademas del bean propio hace que Spring Boot
+  # intente armar su propio JwtDecoder tambien y falle por bean ambiguo.
+
+server:
+  port: 8090
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+app:
+  security:
+    enabled: true
+  rabbitmq:
+    # URL de la API HTTP de administracion de RabbitMQ (puerto 15672 del nodo 1,
+    # ver docs/EP2_PLAN.md seccion 3.8): RabbitAdminService la usa para listar
+    # colas/exchanges/bindings y ver el estado del cluster. Crear/eliminar se
+    # hace con RabbitAdmin de Spring AMQP (AMQP, no HTTP), ver RabbitAdminConfig.
+    management:
+      base-url: ${RABBITMQ_MANAGEMENT_URL:http://localhost:15672}
+      username: ${RABBITMQ_USER:cafeteria}
+      password: ${RABBITMQ_PASSWORD:cafeteria}
+    # Recursos del sistema (los 4 exchanges y las 16 colas de las Fases 2-3):
+    # no se pueden eliminar ni purgar desde esta API (ver seccion 3.8).
+    protegidos:
+      - cafeteria.pedidos.exchange
+      - cafeteria.pagos.exchange
+      - cafeteria.inventario.exchange
+      - cafeteria.dlx
+      - pagos.pedido-creado.queue
+      - pagos.pedido-creado.queue.dlq
+      - pedidos.pago-resultado.queue
+      - pedidos.pago-resultado.queue.dlq
+      - inventario.pago-aprobado.queue
+      - inventario.pago-aprobado.queue.dlq
+      - clientes.pago-aprobado.queue
+      - clientes.pago-aprobado.queue.dlq
+      - reportes.pago-aprobado.queue
+      - reportes.pago-aprobado.queue.dlq
+      - reportes.pedido-eventos.queue
+      - reportes.pedido-eventos.queue.dlq
+      - notificaciones.ticket.queue
+      - notificaciones.ticket.queue.dlq
+      - notificaciones.alertas.queue
+      - notificaciones.alertas.queue.dlq

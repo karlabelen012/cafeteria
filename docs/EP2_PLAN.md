@@ -780,3 +780,34 @@ por un `*DlqListener` que solo registra en `log.error` (payload + header `x-deat
   `GET /api/pedidos/{id}` de ms-pedidos** (mismo patrón ya usado por `ms-clientes/client/PedidoClient`),
   porque `PagoProcesadoEvent` solo trae `pedidoId`, `monto` y `metodoPago`. Mismo 401/403 conocido y
   documentado: sin autenticación servicio-a-servicio todavía, se trata como error transitorio y se reintenta.
+
+## Anexo Fase 4: `ms-rabbitmq-admin`
+
+Microservicio nuevo (puerto 8090, sin base de datos propia — es un proxy hacia RabbitMQ) con todos los
+endpoints de la tabla de la sección 3.8. `RabbitAdminService` encapsula dos vías de acceso a RabbitMQ:
+
+- **`RabbitAdmin` de Spring AMQP** (protocolo AMQP): crear/eliminar colas y exchanges, declarar/quitar
+  bindings, purgar una cola.
+- **`ManagementClient`** (API HTTP de administración, puerto 15672, con `RestClient` + autenticación
+  básica): listar colas/exchanges/bindings, ver el estado del cluster (`GET /api/nodes`), y leer mensajes
+  de una cola (`POST /api/queues/{vhost}/{name}/get`, usado para reprocesar la DLQ).
+
+El controller no importa nada de `org.springframework.amqp` ni del cliente HTTP: todo pasa por el service.
+
+### Decisiones de diseño no explícitas en el plan original
+
+- **`app.rabbitmq.protected` se implementó como `app.rabbitmq.protegidos`**: `protected` es palabra
+  reservada de Java y no puede ser el nombre de una propiedad (`@ConfigurationProperties`) ni de un getter.
+  La lista contiene los 4 exchanges y las 16 colas del sistema (igual que `app.rabbitmq.protegidos` en
+  `application.yml` de `ms-rabbitmq-admin`), y bloquea con 409 tanto el `DELETE` como el `POST .../purge`.
+- **Reprocesar una DLQ usa el header `x-death`** que RabbitMQ agrega automáticamente a todo mensaje
+  muerto: se toma el primer registro (`x-death[0].exchange` y `x-death[0]["routing-keys"][0]`) como el
+  exchange/routing-key original, y se reenvía el payload crudo con `RabbitTemplate`. Si un mensaje no
+  trae `x-death` (no debería pasar en las 16 colas del sistema), se deja fuera del conteo y se registra
+  un `log.warn`.
+- **El prefijo `amq.` prohibido y el patrón de nombre válido se validan con una sola expresión regular**
+  (`^(?!amq\.)[a-z0-9]+([._-][a-z0-9]+)*$`) en el DTO, en vez de dos validaciones separadas: ambas
+  reglas del plan terminan en el mismo 400, así que no hace falta distinguirlas en código.
+- **Toda la API exige rol ADMIN** (`anyRequest().hasAuthority("ADMIN")` en `SecurityConfig`), no solo
+  autenticación: a diferencia del resto de los microservicios, aquí no hay ninguna acción de solo lectura
+  permitida a otros roles (ver sección 3.8: "Solo rol ADMIN"). Swagger UI y el health check quedan abiertos.

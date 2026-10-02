@@ -47,6 +47,10 @@ spring:
           uri: ${MS_NOTIFICACIONES_URL:http://localhost:8089}
           predicates:
             - Path=/api/notificaciones/**,/api/public/tickets/**
+        - id: ms-rabbitmq-admin
+          uri: ${MS_RABBITMQ_ADMIN_URL:http://localhost:8090}
+          predicates:
+            - Path=/api/rabbitmq/**
       # CORS se configura en CorsConfig.java, dentro de la cadena de Spring
       # Security (ver SecurityConfig / NoAuthSecurityConfig) en vez de aqui:
       # un "globalcors" separado no alcanza a agregar los headers cuando

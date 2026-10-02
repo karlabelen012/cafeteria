@@ -61,7 +61,7 @@ Gateway) → 8 microservicios Spring Boot → PostgreSQL.
 
 | Microservicio | Puerto | Qué gestiona | Endpoint base |
 |---|---|---|---|
-| `bff-gateway` | 8080 | Único punto de entrada del frontend; enruta y valida JWT antes de reenviar a cualquiera de los 9 de abajo | `/api/**` |
+| `bff-gateway` | 8080 | Único punto de entrada del frontend; enruta y valida JWT antes de reenviar a cualquiera de los 10 de abajo | `/api/**` |
 | `ms-productos` | 8081 | Menú (catálogo de productos) — el único módulo con lectura pública (`GET`) | `/api/productos` |
 | `ms-inventario` | 8082 | Insumos y stock | `/api/inventario` |
 | `ms-pedidos` | 8083 | Pedidos y sus ítems | `/api/pedidos` |
@@ -71,6 +71,7 @@ Gateway) → 8 microservicios Spring Boot → PostgreSQL.
 | `ms-proveedores` | 8087 | Proveedores | `/api/proveedores` |
 | `ms-reportes` | 8088 | Reportes (dashboard de KPIs, construido solo desde eventos de RabbitMQ) | `/api/reportes` |
 | `ms-notificaciones` | 8089 | Tickets/boletas y alertas (stock bajo, pedido listo), también desde eventos | `/api/notificaciones`, `/api/public/tickets/{codigo}` |
+| `ms-rabbitmq-admin` | 8090 | Administración de colas/exchanges/bindings/DLQ de RabbitMQ (solo ADMIN, sin BD propia) | `/api/rabbitmq` |
 
 El frontend (`http://localhost:4200`) solo le habla al `bff-gateway`
 (`http://localhost:8080/api/...`) — nunca llama directo a un microservicio.
@@ -576,6 +577,59 @@ curl -X PATCH http://localhost:8080/api/notificaciones/alertas/1/leida
 
 ### Qué queda pendiente
 - Test de integración con Testcontainers (`@Tag("integration")`) del flujo checkout → PAGADO end-to-end.
-- Fase 4: `ms-rabbitmq-admin` (administrador de colas/exchanges/bindings vía API REST, solo ADMIN).
 - Fase 5: página "Mensajería" y paneles de alertas/DLQ en el dashboard del frontend.
+
+---
+
+## 14. EP2 — Fase 4: `ms-rabbitmq-admin`
+
+Nuevo microservicio (puerto 8090, **sin base de datos propia**) que administra RabbitMQ vía API REST, solo
+para el rol `ADMIN`. `RabbitAdminService` combina `RabbitAdmin` de Spring AMQP (crear/eliminar/purgar por
+protocolo AMQP) con un `RestClient` autenticado contra la API de administración de RabbitMQ en el puerto
+15672 (listar colas/exchanges/bindings, ver el cluster, leer mensajes de una cola). El controller no conoce
+ninguno de los dos directamente.
+
+### Endpoints (`/api/rabbitmq/**`, todos requieren rol ADMIN)
+
+| Verbo | Ruta | Qué hace |
+|---|---|---|
+| GET | `/queues`, `/queues/{name}` | Lista o detalla colas (mensajes listos/no confirmados, consumidores) |
+| POST | `/queues` | Crea una cola (quorum, durable) |
+| DELETE | `/queues/{name}?ifUnused=&ifEmpty=` | Elimina una cola (409 si está protegida) |
+| POST | `/queues/{name}/purge` | Vacía una cola sin eliminarla |
+| GET | `/exchanges` | Lista exchanges |
+| POST | `/exchanges` | Crea un exchange (direct/topic/fanout/headers) |
+| DELETE | `/exchanges/{name}` | Elimina un exchange (409 si está protegido) |
+| GET | `/bindings` | Lista bindings |
+| POST / DELETE | `/bindings` | Crea / elimina un binding cola↔exchange |
+| GET | `/dlq` | Resumen de mensajes pendientes en las 8 DLQ del sistema |
+| POST | `/dlq/{name}/reprocess?max=10` | Reenvía mensajes de una DLQ a su exchange de origen (usa el header `x-death`) |
+| GET | `/cluster` | Estado de los nodos del cluster |
+
+Validaciones: nombre `@NotBlank/@Size(3,120)` con patrón que además prohíbe el prefijo `amq.` (reservado);
+`type` de exchange restringido a `direct|topic|fanout|headers`; `ttlMs`/`maxLength`/`deliveryLimit`
+opcionales con rangos acotados. Las 16 colas + 4 exchanges del sistema (`app.rabbitmq.protegidos` en
+`application.yml`) no se pueden eliminar ni purgar (409 con mensaje claro).
+
+Documentación interactiva: `http://localhost:8090/swagger-ui.html` (abierta, sin JWT, para poder revisarla).
+
+### Cómo probarlo
+
+```bash
+# Requiere un token ADMIN (o SPRING_PROFILES_ACTIVE=noauth para probar sin Azure)
+curl http://localhost:8080/api/rabbitmq/queues
+curl http://localhost:8080/api/rabbitmq/dlq
+curl http://localhost:8080/api/rabbitmq/cluster
+
+curl -X POST http://localhost:8080/api/rabbitmq/queues \
+  -H "Content-Type: application/json" \
+  -d '{"name":"cola-demo"}'
+curl -X DELETE http://localhost:8080/api/rabbitmq/queues/cola-demo
+
+# Protegida -> 409
+curl -i -X DELETE http://localhost:8080/api/rabbitmq/queues/pagos.pedido-creado.queue
+```
+
+### Qué queda pendiente
+- Fase 5: página "Mensajería" en el frontend que consuma esta API.
 

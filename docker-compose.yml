@@ -333,6 +333,37 @@ services:
       retries: 10
       start_period: 30s
 
+  ms-rabbitmq-admin:
+    <<: *backend-common
+    build:
+      context: ./cafeteria-backend/cafeteria-backend
+      args:
+        MODULE: ms-rabbitmq-admin
+    container_name: ms-rabbitmq-admin
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE-noauth}
+      JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC"
+      AZURE_ISSUER_URI: ${AZURE_ISSUER_URI:-https://login.microsoftonline.com/<TENANT_ID>/v2.0}
+      AZURE_AUDIENCES: ${AZURE_AUDIENCES:-api://cafeteria-backend}
+      AZURE_JWK_SET_URI: ${AZURE_JWK_SET_URI:-}
+      RABBITMQ_ADDRESSES: rabbitmq-1:5672,rabbitmq-2:5672,rabbitmq-3:5672
+      RABBITMQ_USER: ${RABBITMQ_USER:-cafeteria}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-cafeteria}
+      # Sin DB_URL/DB_USER/DB_PASSWORD: este microservicio no tiene base de
+      # datos propia, es un proxy hacia RabbitMQ (ver docs/EP2_PLAN.md seccion 3.8).
+      RABBITMQ_MANAGEMENT_URL: http://rabbitmq-1:15672
+    ports:
+      - "8090:8090"
+    depends_on:
+      rabbitmq-1:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8090/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
   bff-gateway:
     <<: *backend-common
     build:
@@ -358,6 +389,7 @@ services:
       MS_PROVEEDORES_URL: http://ms-proveedores:8087
       MS_REPORTES_URL: http://ms-reportes:8088
       MS_NOTIFICACIONES_URL: http://ms-notificaciones:8089
+      MS_RABBITMQ_ADMIN_URL: http://ms-rabbitmq-admin:8090
     depends_on:
       ms-productos:
         condition: service_healthy
@@ -370,6 +402,8 @@ services:
       ms-pagos:
         condition: service_healthy
       ms-empleados:
+        condition: service_healthy
+      ms-rabbitmq-admin:
         condition: service_healthy
       ms-proveedores:
         condition: service_healthy
