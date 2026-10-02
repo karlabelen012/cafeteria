@@ -52,8 +52,8 @@ export default function Footer() {
             <div className="site-footer__col">
               <h4>Cuenta</h4>
               <ul>
-                <li><Link to="/portal">Portal del equipo</Link></li>
-                <li><Link to="/portal">Iniciar sesión</Link></li>
+                <li><Link to="/login">Portal del equipo</Link></li>
+                <li><Link to="/login">Iniciar sesión</Link></li>
               </ul>
             </div>
           </div>

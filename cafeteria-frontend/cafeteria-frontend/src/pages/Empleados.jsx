@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '../services/apiClient';
-import NavBar from '../components/NavBar';
 
 const ROLES = ['BARISTA', 'CAJERO', 'ADMIN'];
 const VACIO = { nombre: '', email: '', rol: 'BARISTA', activo: true };
@@ -68,15 +67,13 @@ export default function Empleados() {
   };
 
   return (
-    <div className="app-shell">
-      <NavBar />
-      <div className="page">
-        <div className="page__header">
-          <div>
-            <h2>Empleados</h2>
-            <p>Equipo de la cafetería, sus roles y estado.</p>
-          </div>
+    <div>
+      <div className="dash-page__header">
+        <div>
+          <h2>Empleados</h2>
+          <p>Equipo de la cafetería, sus roles y estado.</p>
         </div>
+      </div>
 
         {error && <div className="alert alert-error">{error}</div>}
 
@@ -131,8 +128,8 @@ export default function Empleados() {
         )}
 
         {!cargando && empleados.length > 0 && (
-          <div className="table-wrap">
-            <table className="data-table">
+          <div className="dash-table-wrap">
+            <table className="dash-table">
               <thead>
                 <tr>
                   <th>Nombre</th>
@@ -173,7 +170,6 @@ export default function Empleados() {
             </table>
           </div>
         )}
-      </div>
     </div>
   );
 }

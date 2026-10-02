@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '../services/apiClient';
-import NavBar from '../components/NavBar';
 import { badgeClassForEstado } from '../utils/badges';
 
 const ESTADOS = ['Pendiente', 'En preparación', 'Listo', 'Entregado', 'Cancelado'];
@@ -41,34 +40,32 @@ export default function Pedidos() {
   };
 
   return (
-    <div className="app-shell">
-      <NavBar />
-      <div className="page">
-        <div className="page__header">
-          <div>
-            <h2>Pedidos</h2>
-            <p>Seguimiento de lo que se está preparando y entregando.</p>
-          </div>
+    <div>
+      <div className="dash-page__header">
+        <div>
+          <h2>Pedidos</h2>
+          <p>Seguimiento de lo que se está preparando y entregando.</p>
         </div>
+      </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+      {error && <div className="alert alert-error">{error}</div>}
 
-        {cargando && (
-          <div className="state-block">
-            <div className="spinner" />
-            <p>Cargando pedidos...</p>
-          </div>
-        )}
+      {cargando && (
+        <div className="state-block">
+          <div className="spinner" />
+          <p>Cargando pedidos...</p>
+        </div>
+      )}
 
-        {!cargando && !error && pedidos.length === 0 && (
-          <div className="state-block">
-            <h3>No hay pedidos registrados todavía</h3>
-            <p>Los nuevos pedidos aparecerán aquí apenas se registren.</p>
-          </div>
-        )}
+      {!cargando && !error && pedidos.length === 0 && (
+        <div className="state-block">
+          <h3>No hay pedidos registrados todavía</h3>
+          <p>Los nuevos pedidos aparecerán aquí apenas se registren.</p>
+        </div>
+      )}
 
-        {!cargando && pedidos.length > 0 && (
-          <div className="orders-list">
+      {!cargando && pedidos.length > 0 && (
+        <div className="orders-list">
             {pedidos.map((p) => (
               <div key={p.id} className="order-card">
                 <span className="order-card__id">Pedido #{p.id}</span>
@@ -91,7 +88,6 @@ export default function Pedidos() {
             ))}
           </div>
         )}
-      </div>
     </div>
   );
 }

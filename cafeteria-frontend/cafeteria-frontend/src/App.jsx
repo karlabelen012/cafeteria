@@ -3,6 +3,11 @@ import Store from './pages/Store.jsx';
 import Checkout from './pages/Checkout.jsx';
 import OrderStatus from './pages/OrderStatus.jsx';
 import StaffLogin from './pages/StaffLogin.jsx';
+import DashboardLayout from './layouts/DashboardLayout.jsx';
+import DashboardHome from './pages/dashboard/DashboardHome.jsx';
+import Alertas from './pages/dashboard/Alertas.jsx';
+import Recetas from './pages/dashboard/Recetas.jsx';
+import Mensajeria from './pages/dashboard/Mensajeria.jsx';
 import Pedidos from './pages/Pedidos.jsx';
 import Productos from './pages/Productos.jsx';
 import Inventario from './pages/Inventario.jsx';
@@ -14,29 +19,46 @@ import Reportes from './pages/Reportes.jsx';
 import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import RequireRole from './components/RequireRole.jsx';
 
-function staff(element, roles) {
-  const content = roles ? <RequireRole allowed={roles}>{element}</RequireRole> : element;
-  return <ProtectedRoute>{content}</ProtectedRoute>;
+function guarded(element, roles) {
+  return roles ? <RequireRole allowed={roles}>{element}</RequireRole> : element;
 }
 
 export default function App() {
   return (
     <Routes>
-      {/* Tienda publica: sin login, para clientes */}
+      {/* Tienda publica: sin login, para clientes (ver docs/EP2_PLAN.md seccion 6.1) */}
       <Route path="/" element={<Store />} />
       <Route path="/checkout" element={<Checkout />} />
       <Route path="/pedido/:id" element={<OrderStatus />} />
+      <Route path="/login" element={<StaffLogin />} />
 
-      {/* Portal de staff: requiere sesion (Azure Entra ID / MSAL) */}
-      <Route path="/portal" element={<StaffLogin />} />
-      <Route path="/pedidos" element={staff(<Pedidos />)} />
-      <Route path="/productos" element={staff(<Productos />)} />
-      <Route path="/clientes" element={staff(<Clientes />)} />
-      <Route path="/inventario" element={staff(<Inventario />, ['ADMIN'])} />
-      <Route path="/empleados" element={staff(<Empleados />, ['ADMIN'])} />
-      <Route path="/proveedores" element={staff(<Proveedores />, ['ADMIN'])} />
-      <Route path="/pagos" element={staff(<Pagos />, ['ADMIN', 'CAJERO'])} />
-      <Route path="/reportes" element={staff(<Reportes />, ['ADMIN'])} />
+      {/* Dashboard de staff: requiere sesion (Azure Entra ID / MSAL), layout
+          con sidebar/topbar compartido y permisos por rol dentro de cada
+          seccion (el backend vuelve a validar esto siempre). */}
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute>
+            <DashboardLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<DashboardHome />} />
+        <Route path="pedidos" element={guarded(<Pedidos />, ['ADMIN', 'GERENTE', 'BARISTA', 'CAJERO'])} />
+        <Route path="menu" element={<Productos />} />
+        <Route
+          path="inventario"
+          element={guarded(<Inventario />, ['ADMIN', 'GERENTE', 'BARISTA', 'BODEGUERO'])}
+        />
+        <Route path="recetas" element={guarded(<Recetas />, ['ADMIN', 'GERENTE', 'BODEGUERO'])} />
+        <Route path="clientes" element={guarded(<Clientes />, ['ADMIN', 'GERENTE', 'BARISTA', 'CAJERO'])} />
+        <Route path="pagos" element={guarded(<Pagos />, ['ADMIN', 'GERENTE', 'CAJERO'])} />
+        <Route path="empleados" element={guarded(<Empleados />, ['ADMIN', 'GERENTE'])} />
+        <Route path="proveedores" element={guarded(<Proveedores />, ['ADMIN', 'GERENTE', 'BODEGUERO'])} />
+        <Route path="reportes" element={guarded(<Reportes />, ['ADMIN', 'GERENTE', 'CAJERO'])} />
+        <Route path="alertas" element={<Alertas />} />
+        <Route path="mensajeria" element={guarded(<Mensajeria />, ['ADMIN'])} />
+      </Route>
     </Routes>
   );
 }

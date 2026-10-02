@@ -1,4 +1,4 @@
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useMsal, AuthenticatedTemplate, UnauthenticatedTemplate } from '@azure/msal-react';
 import { loginRequest } from '../auth/authConfig';
 import CoffeeIcon from '../components/CoffeeIcon';
@@ -8,6 +8,10 @@ const authDisabled = import.meta.env.VITE_AUTH_DISABLED === 'true';
 export default function StaffLogin() {
   const { instance, accounts } = useMsal();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  // Vuelve a la pagina que el usuario queria ver antes de que ProtectedRoute
+  // lo mandara aqui (ver auth/ProtectedRoute.jsx), o al dashboard por defecto.
+  const destino = searchParams.get('redirect') || '/dashboard';
 
   const handleLogin = () => {
     // Dispara el flujo Authorization Code + PKCE contra Azure Entra ID.
@@ -44,7 +48,7 @@ export default function StaffLogin() {
 
           {authDisabled ? (
             <div className="hero__actions">
-              <button className="btn btn-primary" onClick={() => navigate('/pedidos')}>
+              <button className="btn btn-primary" onClick={() => navigate(destino)}>
                 Entrar al portal
               </button>
               <Link to="/" className="btn btn-outline">
@@ -69,7 +73,7 @@ export default function StaffLogin() {
                   Sesión iniciada como <b>{accounts[0]?.name ?? accounts[0]?.username}</b>
                 </p>
                 <div className="hero__actions">
-                  <button className="btn btn-primary" onClick={() => navigate('/pedidos')}>
+                  <button className="btn btn-primary" onClick={() => navigate(destino)}>
                     Entrar al portal
                   </button>
                   <button className="btn btn-ghost" onClick={handleLogout}>

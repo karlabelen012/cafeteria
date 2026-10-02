@@ -90,7 +90,7 @@ export default function Store() {
               Mi pedido
             </Link>
           )}
-          <Link to="/portal" className="btn btn-ghost">
+          <Link to="/login" className="btn btn-ghost">
             Portal del equipo
           </Link>
           <button className="cart-button" onClick={() => setCarritoAbierto(true)} aria-label="Ver carrito">

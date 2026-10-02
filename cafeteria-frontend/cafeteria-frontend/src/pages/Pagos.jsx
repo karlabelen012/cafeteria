@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '../services/apiClient';
-import NavBar from '../components/NavBar';
 import { badgeClassForEstado } from '../utils/badges';
 
 const ESTADOS = ['Pendiente', 'Aprobado', 'Rechazado', 'Reembolsado'];
@@ -40,35 +39,33 @@ export default function Pagos() {
   };
 
   return (
-    <div className="app-shell">
-      <NavBar />
-      <div className="page">
-        <div className="page__header">
-          <div>
-            <h2>Pagos</h2>
-            <p>Registro de pagos por pedido, método y estado.</p>
-          </div>
+    <div>
+      <div className="dash-page__header">
+        <div>
+          <h2>Pagos</h2>
+          <p>Registro de pagos por pedido, método y estado.</p>
         </div>
+      </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+      {error && <div className="alert alert-error">{error}</div>}
 
-        {cargando && (
-          <div className="state-block">
-            <div className="spinner" />
-            <p>Cargando pagos...</p>
-          </div>
-        )}
+      {cargando && (
+        <div className="state-block">
+          <div className="spinner" />
+          <p>Cargando pagos...</p>
+        </div>
+      )}
 
-        {!cargando && !error && pagos.length === 0 && (
-          <div className="state-block">
-            <h3>Todavía no hay pagos registrados</h3>
-            <p>Los pagos hechos desde la tienda aparecerán aquí.</p>
-          </div>
-        )}
+      {!cargando && !error && pagos.length === 0 && (
+        <div className="state-block">
+          <h3>Todavía no hay pagos registrados</h3>
+          <p>Los pagos hechos desde la tienda aparecerán aquí.</p>
+        </div>
+      )}
 
-        {!cargando && pagos.length > 0 && (
-          <div className="table-wrap">
-            <table className="data-table">
+      {!cargando && pagos.length > 0 && (
+        <div className="dash-table-wrap">
+          <table className="dash-table">
               <thead>
                 <tr>
                   <th>Pago</th>
@@ -113,7 +110,6 @@ export default function Pagos() {
             </table>
           </div>
         )}
-      </div>
     </div>
   );
 }

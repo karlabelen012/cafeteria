@@ -1,25 +1,20 @@
-import NavBar from './NavBar';
 import { useUserRole } from '../hooks/useUserRole';
 
-// Restringe una seccion del portal de staff a ciertos roles (ej. ADMIN).
-// El backend ya exige ADMIN para crear/editar/eliminar en estos modulos;
-// esto ademas oculta la seccion completa a quien no deberia ni verla.
+// Restringe una seccion del dashboard a ciertos roles (ej. ADMIN).
+// El backend ya exige el rol correspondiente para cada operación; esto
+// además oculta la sección completa a quien no debería ni verla. Vive
+// dentro de DashboardLayout, asi que no trae su propio shell.
 export default function RequireRole({ allowed, children }) {
   const role = useUserRole();
 
   if (!allowed.includes(role)) {
     return (
-      <div className="app-shell">
-        <NavBar />
-        <div className="page">
-          <div className="state-block">
-            <h3>Acceso restringido</h3>
-            <p>
-              Esta sección es solo para el rol {allowed.join(' o ')}. Tu rol actual es{' '}
-              <b>{role || 'sin rol asignado'}</b>.
-            </p>
-          </div>
-        </div>
+      <div className="state-block">
+        <h3>Acceso restringido</h3>
+        <p>
+          Esta sección es solo para el rol {allowed.join(' o ')}. Tu rol actual es{' '}
+          <b>{role || 'sin rol asignado'}</b>.
+        </p>
       </div>
     );
   }

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '../services/apiClient';
-import NavBar from './NavBar';
 
-// Vista genérica de "listar recurso": la usan Inventario, Clientes, Empleados,
-// Proveedores y Pagos, que comparten el mismo patrón CRUD en el backend
+// Vista genérica de "listar recurso": la usan Clientes, Inventario,
+// Proveedores y Reportes, que comparten el mismo patrón CRUD en el backend
 // (GET lista -> BFF -> microservicio). Cada página solo define columnas.
+// Vive dentro de DashboardLayout (sidebar/topbar), por eso no trae su propio
+// shell: solo el contenido de la página.
 export default function ResourcePage({
   title,
   subtitle,
@@ -31,57 +32,54 @@ export default function ResourcePage({
   }, [endpoint]);
 
   return (
-    <div className="app-shell">
-      <NavBar />
-      <div className="page">
-        <div className="page__header">
-          <div>
-            <h2>{title}</h2>
-            <p>{subtitle}</p>
-          </div>
+    <div>
+      <div className="dash-page__header">
+        <div>
+          <h2>{title}</h2>
+          <p>{subtitle}</p>
         </div>
+      </div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+      {error && <div className="alert alert-error">{error}</div>}
 
-        {cargando && (
-          <div className="state-block">
-            <div className="spinner" />
-            <p>Cargando...</p>
-          </div>
-        )}
+      {cargando && (
+        <div className="state-block">
+          <div className="spinner" />
+          <p>Cargando...</p>
+        </div>
+      )}
 
-        {!cargando && !error && renderAbove ? renderAbove(items) : null}
+      {!cargando && !error && renderAbove ? renderAbove(items) : null}
 
-        {!cargando && !error && items.length === 0 && (
-          <div className="state-block">
-            <h3>{emptyTitle}</h3>
-            <p>{emptyText}</p>
-          </div>
-        )}
+      {!cargando && !error && items.length === 0 && (
+        <div className="state-block">
+          <h3>{emptyTitle}</h3>
+          <p>{emptyText}</p>
+        </div>
+      )}
 
-        {!cargando && items.length > 0 && (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
+      {!cargando && items.length > 0 && (
+        <div className="dash-table-wrap">
+          <table className="dash-table">
+            <thead>
+              <tr>
+                {columns.map((col) => (
+                  <th key={col.key}>{col.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
                   {columns.map((col) => (
-                    <th key={col.key}>{col.label}</th>
+                    <td key={col.key}>{col.render ? col.render(item) : item[col.key]}</td>
                   ))}
                 </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => (
-                  <tr key={item.id}>
-                    {columns.map((col) => (
-                      <td key={col.key}>{col.render ? col.render(item) : item[col.key]}</td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

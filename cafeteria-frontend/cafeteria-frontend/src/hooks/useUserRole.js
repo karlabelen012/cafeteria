@@ -23,7 +23,7 @@ function elegirRolPorDefecto(roles) {
 //
 // En modo noauth/demo (VITE_AUTH_DISABLED=true) no hay backend de verdad
 // detras del login, asi que se simula con el selector "Ver como" guardado en
-// localStorage (ver banner "MODO DEMO" en NavBar).
+// localStorage (ver banner "MODO DEMO" en layouts/DashboardLayout).
 //
 // Si el usuario tiene mas de un rol asignado en Azure, puede elegir cual usar
 // como "perfil activo"; esa eleccion se recuerda en localStorage mientras
@@ -33,6 +33,9 @@ export function useAuthProfile() {
   const [roles, setRoles] = useState(() => (authDisabled ? [localStorage.getItem(DEMO_ROLE_KEY) || 'ADMIN'] : []));
   const [activeRole, setActiveRoleState] = useState(() =>
     authDisabled ? localStorage.getItem(DEMO_ROLE_KEY) || 'ADMIN' : localStorage.getItem(ACTIVE_ROLE_KEY)
+  );
+  const [perfil, setPerfil] = useState(() =>
+    authDisabled ? { nombre: 'Equipo Demo', email: 'demo@cafegestion360.cl' } : { nombre: '', email: '' }
   );
 
   useEffect(() => {
@@ -53,6 +56,7 @@ export function useAuthProfile() {
         if (cancelled) return;
         const rolesRecibidos = data.roles || [];
         setRoles(rolesRecibidos);
+        setPerfil({ nombre: data.nombre || account.name || '', email: data.email || account.username || '' });
         setActiveRoleState((actual) =>
           actual && rolesRecibidos.includes(actual) ? actual : elegirRolPorDefecto(rolesRecibidos)
         );
@@ -80,7 +84,7 @@ export function useAuthProfile() {
     setActiveRoleState(rol);
   }, []);
 
-  return { roles, role: activeRole, setActiveRole };
+  return { roles, role: activeRole, setActiveRole, nombre: perfil.nombre, email: perfil.email };
 }
 
 // Atajo para los componentes que solo necesitan el rol activo (p.ej. para
