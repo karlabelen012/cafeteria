@@ -20,8 +20,11 @@ import java.util.Optional;
 @Component
 public class ManagementClient {
 
-    // Vhost por defecto de RabbitMQ ("/"), URL-encoded como lo exige la API.
-    private static final String VHOST = "%2F";
+    // Vhost por defecto de RabbitMQ ("/"). Se pasa sin codificar: RestClient
+    // ya hace el URL-encoding del placeholder {vhost} (si aqui se pasara ya
+    // codificado como "%2F", RestClient lo codificaria de nuevo a "%252F" y
+    // la API de management responde 404 "Object Not Found").
+    private static final String VHOST = "/";
 
     private final RestClient restClient;
 

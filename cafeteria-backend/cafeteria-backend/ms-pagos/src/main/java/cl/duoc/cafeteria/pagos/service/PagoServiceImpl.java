@@ -47,6 +47,7 @@ public class PagoServiceImpl implements PagoService {
         Pago pago = new Pago();
         aplicarDatos(pago, request);
         pago.setEstado(ESTADO_APROBADO);
+        pago.setFecha(Instant.now());
         Pago guardado = repository.save(pago);
         publicarResultado(guardado, true);
         return aResponse(guardado);
@@ -103,6 +104,6 @@ public class PagoServiceImpl implements PagoService {
 
     private PagoResponse aResponse(Pago pago) {
         return new PagoResponse(pago.getId(), pago.getPedidoId(), pago.getMonto(),
-                pago.getMetodoPago(), pago.getEstado(), pago.getUltimos4());
+                pago.getMetodoPago(), pago.getEstado(), pago.getUltimos4(), pago.getFecha());
     }
 }

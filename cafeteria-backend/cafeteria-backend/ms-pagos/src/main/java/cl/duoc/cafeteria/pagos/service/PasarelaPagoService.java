@@ -92,6 +92,7 @@ public class PasarelaPagoService {
         pago.setMetodoPago(evento.metodoPago());
         pago.setUltimos4(evento.ultimos4());
         pago.setEstado(estado);
+        pago.setFecha(Instant.now());
         return pago;
     }
 }

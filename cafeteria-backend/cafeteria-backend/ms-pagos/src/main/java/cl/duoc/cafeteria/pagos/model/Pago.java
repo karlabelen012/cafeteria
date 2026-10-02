@@ -3,6 +3,8 @@ package cl.duoc.cafeteria.pagos.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+
+import java.time.Instant;
 import jakarta.validation.constraints.Positive;
 
 @Entity
@@ -38,6 +40,10 @@ public class Pago {
     @Pattern(regexp = "^\\d{4}$", message = "ultimos4 debe tener exactamente 4 digitos")
     private String ultimos4;
 
+    // Momento en que el pago quedo APROBADO (o se registro en el mostrador).
+    // Lo usa la vista "Caja del dia" del CAJERO (ver docs/EP2_PLAN.md seccion 6.2).
+    private Instant fecha;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -51,4 +57,6 @@ public class Pago {
     public void setEstado(String estado) { this.estado = estado; }
     public String getUltimos4() { return ultimos4; }
     public void setUltimos4(String ultimos4) { this.ultimos4 = ultimos4; }
+    public Instant getFecha() { return fecha; }
+    public void setFecha(Instant fecha) { this.fecha = fecha; }
 }

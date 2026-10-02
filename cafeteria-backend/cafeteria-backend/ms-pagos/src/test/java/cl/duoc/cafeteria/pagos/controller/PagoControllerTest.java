@@ -54,7 +54,7 @@ class PagoControllerTest {
     }
 
     private PagoResponse responseValido() {
-        return new PagoResponse(1L, 10L, 5000.0, "EFECTIVO", "APROBADO", null);
+        return new PagoResponse(1L, 10L, 5000.0, "EFECTIVO", "APROBADO", null, java.time.Instant.now());
     }
 
     @Test
@@ -144,7 +144,7 @@ class PagoControllerTest {
     @Test
     @WithMockUser(authorities = "ADMIN")
     void anular_comoAdmin_retorna200() throws Exception {
-        PagoResponse anulado = new PagoResponse(1L, 10L, 5000.0, "EFECTIVO", "ANULADO", null);
+        PagoResponse anulado = new PagoResponse(1L, 10L, 5000.0, "EFECTIVO", "ANULADO", null, java.time.Instant.now());
         when(service.anular(1L)).thenReturn(anulado);
 
         mockMvc.perform(patch("/api/pagos/1/anular"))
