@@ -4,16 +4,48 @@ import { loginRequest, apiBaseUrl } from '../auth/authConfig';
 
 const authDisabled = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
+// Lee el cuerpo de una respuesta de error (formato {timestamp,status,error,
+// message,fieldErrors} del GlobalExceptionHandler de cada microservicio, ver
+// docs/EP2_PLAN.md seccion 3.8) y arma un Error con esos datos adjuntos, para
+// que los formularios puedan mostrar fieldErrors bajo cada campo (seccion 6.1).
+async function errorDesdeRespuesta(response) {
+  let cuerpo = null;
+  try {
+    cuerpo = await response.json();
+  } catch {
+    // Respuesta sin cuerpo JSON (p.ej. 401 del propio BFF): se sigue con el mensaje generico.
+  }
+
+  let mensaje = cuerpo?.message || `Error ${response.status} llamando a la API`;
+  if (response.status === 403) {
+    mensaje = 'No tienes permiso para esta acción.';
+  }
+
+  const error = new Error(mensaje);
+  error.status = response.status;
+  error.fieldErrors = cuerpo?.fieldErrors || [];
+  error.body = cuerpo;
+  return error;
+}
+
+async function leerCuerpo(response) {
+  if (response.status === 204) return null;
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 // ── Modo noauth: no usa MSAL, no hay token, el backend debe correr con noauth ──
 function useApiClientNoAuth() {
   async function callApi(path, options = {}) {
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers });
     if (!response.ok) {
-      throw new Error(`Error ${response.status} llamando a ${path}`);
+      throw await errorDesdeRespuesta(response);
     }
-    if (response.status === 204) return null;
-    return response.json();
+    return leerCuerpo(response);
   }
   return { callApi };
 }
@@ -49,11 +81,19 @@ function useApiClientMsal() {
       headers.Authorization = `Bearer ${token}`;
     }
     const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers });
-    if (!response.ok) {
-      throw new Error(`Error ${response.status} llamando a ${path}`);
+
+    if (response.status === 401) {
+      // El token expiro o ya no es valido: se fuerza un nuevo login en vez de
+      // dejar que la pagina se quede mostrando datos vacios silenciosamente
+      // (ver docs/EP2_PLAN.md seccion 6.1).
+      await instance.acquireTokenRedirect(loginRequest);
+      throw await errorDesdeRespuesta(response);
     }
-    if (response.status === 204) return null;
-    return response.json();
+
+    if (!response.ok) {
+      throw await errorDesdeRespuesta(response);
+    }
+    return leerCuerpo(response);
   }
 
   return { callApi };
@@ -61,4 +101,3 @@ function useApiClientMsal() {
 
 // authDisabled es una constante de build → Vite elimina el código muerto.
 export const useApiClient = authDisabled ? useApiClientNoAuth : useApiClientMsal;
-

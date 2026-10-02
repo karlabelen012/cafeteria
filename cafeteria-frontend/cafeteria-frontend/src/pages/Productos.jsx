@@ -1,73 +1,53 @@
-import { useEffect, useState } from 'react';
-import { useApiClient } from '../services/apiClient';
+import CrudPage from '../components/CrudPage.jsx';
+import { useUserRole } from '../hooks/useUserRole';
+
+const CATEGORIAS = ['Bebidas calientes', 'Bebidas frías', 'Pastelería', 'Galletas'];
+
+const CAMPOS = [
+  { name: 'nombre', label: 'Nombre', type: 'text', required: true },
+  { name: 'descripcion', label: 'Descripción', type: 'textarea' },
+  { name: 'precio', label: 'Precio', type: 'number', required: true, min: 0, step: 1 },
+  {
+    name: 'categoria',
+    label: 'Categoría',
+    type: 'select',
+    required: true,
+    options: CATEGORIAS.map((c) => ({ value: c, label: c })),
+  },
+  { name: 'disponible', label: 'Disponible', type: 'checkbox' },
+  { name: 'imagenUrl', label: 'URL de la imagen', type: 'text' },
+];
 
 export default function Productos() {
-  const { callApi } = useApiClient();
-  const [productos, setProductos] = useState([]);
-  const [cargando, setCargando] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    callApi('/productos')
-      .then(setProductos)
-      .catch((err) => {
-        console.error(err);
-        setError('No se pudo cargar el menú (revisa el token o el backend).');
-      })
-      .finally(() => setCargando(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const categorias = Array.from(
-    new Set(productos.map((p) => p.categoria || 'Otros')),
-  );
+  const role = useUserRole();
+  const esAdmin = role === 'ADMIN';
 
   return (
-    <div>
-      <div className="dash-page__header">
-        <div>
-          <h2>Menú de productos</h2>
-          <p>Lo que hoy se puede pedir en barra.</p>
-        </div>
-      </div>
-
-      {error && <div className="alert alert-error">{error}</div>}
-
-      {cargando && (
-        <div className="state-block">
-          <div className="spinner" />
-          <p>Cargando el menú...</p>
-        </div>
-      )}
-
-      {!cargando && !error && productos.length === 0 && (
-        <div className="state-block">
-          <h3>Todavía no hay productos cargados</h3>
-          <p>Agrega productos desde el backend para verlos aquí.</p>
-        </div>
-      )}
-
-      {!cargando &&
-        categorias.map((categoria) => (
-          <div key={categoria}>
-            <h3 className="category-heading">{categoria}</h3>
-            <div className="menu-grid">
-              {productos
-                .filter((p) => (p.categoria || 'Otros') === categoria)
-                .map((p) => (
-                  <article key={p.id} className="product-card">
-                    <div className="product-card__top">
-                      <span className="product-card__name">{p.nombre}</span>
-                      <span className="product-card__price">${p.precio}</span>
-                    </div>
-                    {p.descripcion && (
-                      <p className="product-card__desc">{p.descripcion}</p>
-                    )}
-                  </article>
-                ))}
-            </div>
-          </div>
-        ))}
-    </div>
+    <CrudPage
+      title="Menú de productos"
+      subtitle="Lo que hoy se puede pedir en barra."
+      endpoint="/productos"
+      nombreSingular="producto"
+      searchKeys={['nombre', 'categoria']}
+      puedeCrear={esAdmin}
+      puedeEditar={esAdmin}
+      puedeEliminar={esAdmin}
+      valoresPorDefecto={{ nombre: '', descripcion: '', precio: '', categoria: '', disponible: true, imagenUrl: '' }}
+      fields={CAMPOS}
+      columns={[
+        { key: 'nombre', label: 'Nombre', render: (p) => <strong>{p.nombre}</strong> },
+        { key: 'categoria', label: 'Categoría' },
+        { key: 'precio', label: 'Precio', render: (p) => `$${p.precio}` },
+        {
+          key: 'disponible',
+          label: 'Estado',
+          render: (p) => (
+            <span className={`badge ${p.disponible ? 'badge--success' : 'badge--neutral'}`}>
+              {p.disponible ? 'Disponible' : 'No disponible'}
+            </span>
+          ),
+        },
+      ]}
+    />
   );
 }

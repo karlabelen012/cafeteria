@@ -1,13 +1,37 @@
-import ResourcePage from '../components/ResourcePage';
+import CrudPage from '../components/CrudPage.jsx';
+import { useUserRole } from '../hooks/useUserRole';
+
+const UNIDADES = ['g', 'ml', 'unidad'];
+
+const CAMPOS = [
+  { name: 'nombre', label: 'Nombre', type: 'text', required: true },
+  {
+    name: 'unidadMedida',
+    label: 'Unidad de medida',
+    type: 'select',
+    required: true,
+    options: UNIDADES.map((u) => ({ value: u, label: u })),
+  },
+  { name: 'stockActual', label: 'Stock actual', type: 'number', required: true, min: 0, step: 0.1 },
+  { name: 'stockMinimo', label: 'Stock mínimo', type: 'number', required: true, min: 0, step: 0.1 },
+];
 
 export default function Inventario() {
+  const role = useUserRole();
+  const puedeEditar = role === 'ADMIN' || role === 'BODEGUERO';
+
   return (
-    <ResourcePage
+    <CrudPage
       title="Inventario"
       subtitle="Insumos y niveles de stock de la cafetería."
       endpoint="/inventario"
-      emptyTitle="Todavía no hay insumos cargados"
-      emptyText="Registra insumos desde el backend para verlos aquí."
+      nombreSingular="insumo"
+      searchKeys={['nombre']}
+      puedeCrear={puedeEditar}
+      puedeEditar={puedeEditar}
+      puedeEliminar={role === 'ADMIN'}
+      valoresPorDefecto={{ nombre: '', unidadMedida: 'g', stockActual: 0, stockMinimo: 0 }}
+      fields={CAMPOS}
       columns={[
         { key: 'nombre', label: 'Insumo', render: (i) => <strong>{i.nombre}</strong> },
         { key: 'unidadMedida', label: 'Unidad' },

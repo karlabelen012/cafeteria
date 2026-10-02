@@ -1,15 +1,23 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '../services/apiClient';
+import { useToasts } from '../context/ToastContext.jsx';
+import { useUserRole } from '../hooks/useUserRole';
 import { badgeClassForEstado } from '../utils/badges';
 
-const ESTADOS = ['Pendiente', 'Aprobado', 'Rechazado', 'Reembolsado'];
-
+// El unico cambio de estado posible desde la UI de staff es "anular" (ver
+// ms-pagos/controller/PagoController: PATCH /{id}/anular, solo ADMIN). No
+// existe un PUT libre de estado: APROBADO/RECHAZADO los decide la pasarela
+// (ver docs/EP2_PLAN.md seccion 3.5), no el staff.
 export default function Pagos() {
   const { callApi } = useApiClient();
+  const toasts = useToasts();
+  const role = useUserRole();
+  const puedeAnular = role === 'ADMIN';
+
   const [pagos, setPagos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
-  const [actualizando, setActualizando] = useState(null);
+  const [anulando, setAnulando] = useState(null);
 
   useEffect(() => {
     callApi('/pagos')
@@ -22,19 +30,17 @@ export default function Pagos() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const cambiarEstado = async (pago, nuevoEstado) => {
-    setActualizando(pago.id);
+  const anular = async (pago) => {
+    setAnulando(pago.id);
     try {
-      const actualizado = await callApi(`/pagos/${pago.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...pago, estado: nuevoEstado }),
-      });
+      const actualizado = await callApi(`/pagos/${pago.id}/anular`, { method: 'PATCH' });
       setPagos((prev) => prev.map((p) => (p.id === pago.id ? actualizado : p)));
+      toasts.success(`Pago #${pago.id} anulado.`);
     } catch (err) {
       console.error(err);
-      setError(`No se pudo actualizar el pago #${pago.id}.`);
+      toasts.error(err.message || `No se pudo anular el pago #${pago.id}.`);
     } finally {
-      setActualizando(null);
+      setAnulando(null);
     }
   };
 
@@ -66,50 +72,49 @@ export default function Pagos() {
       {!cargando && pagos.length > 0 && (
         <div className="dash-table-wrap">
           <table className="dash-table">
-              <thead>
-                <tr>
-                  <th>Pago</th>
-                  <th>Pedido</th>
-                  <th>Monto</th>
-                  <th>Método</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagos.map((p) => (
-                  <tr key={p.id}>
+            <thead>
+              <tr>
+                <th>Pago</th>
+                <th>Pedido</th>
+                <th>Monto</th>
+                <th>Método</th>
+                <th>Últimos 4</th>
+                <th>Estado</th>
+                {puedeAnular && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {pagos.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <strong>#{p.id}</strong>
+                  </td>
+                  <td>#{p.pedidoId}</td>
+                  <td>${p.monto}</td>
+                  <td>{p.metodoPago}</td>
+                  <td>{p.ultimos4 ? `•••• ${p.ultimos4}` : '—'}</td>
+                  <td>
+                    <span className={badgeClassForEstado(p.estado)}>{p.estado || 'Sin estado'}</span>
+                  </td>
+                  {puedeAnular && (
                     <td>
-                      <strong>#{p.id}</strong>
-                    </td>
-                    <td>#{p.pedidoId}</td>
-                    <td>${p.monto}</td>
-                    <td>{p.metodoPago}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span className={badgeClassForEstado(p.estado)}>{p.estado || 'Sin estado'}</span>
-                        <select
-                          className="role-switcher"
-                          value={p.estado || ''}
-                          disabled={actualizando === p.id}
-                          onChange={(e) => cambiarEstado(p, e.target.value)}
+                      {p.estado === 'APROBADO' && (
+                        <button
+                          className="dash-icon-btn dash-icon-btn--danger"
+                          disabled={anulando === p.id}
+                          onClick={() => anular(p)}
                         >
-                          {!ESTADOS.includes(p.estado) && p.estado && (
-                            <option value={p.estado}>{p.estado}</option>
-                          )}
-                          {ESTADOS.map((estado) => (
-                            <option key={estado} value={estado}>
-                              {estado}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                          {anulando === p.id ? 'Anulando...' : 'Anular'}
+                        </button>
+                      )}
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

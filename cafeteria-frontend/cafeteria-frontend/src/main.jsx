@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { CartProvider } from './context/CartContext.jsx';
+import { ToastProvider } from './context/ToastContext.jsx';
 import App from './App.jsx';
 import './index.css';
 
@@ -14,11 +15,13 @@ async function bootstrap() {
     // Modo noauth: MSAL nunca se instancia (evita el error crypto_nonexistent en HTTP).
     AppTree = (
       <React.StrictMode>
-        <CartProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </CartProvider>
+        <ToastProvider>
+          <CartProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </CartProvider>
+        </ToastProvider>
       </React.StrictMode>
     );
   } else {
@@ -42,11 +45,13 @@ async function bootstrap() {
     AppTree = (
       <React.StrictMode>
         <MsalProvider instance={msalInstance}>
-          <CartProvider>
-            <BrowserRouter>
-              <App />
-            </BrowserRouter>
-          </CartProvider>
+          <ToastProvider>
+            <CartProvider>
+              <BrowserRouter>
+                <App />
+              </BrowserRouter>
+            </CartProvider>
+          </ToastProvider>
         </MsalProvider>
       </React.StrictMode>
     );

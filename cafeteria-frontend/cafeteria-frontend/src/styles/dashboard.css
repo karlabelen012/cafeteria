@@ -1,8 +1,10 @@
-/* Design system del dashboard (ver docs/EP2_PLAN.md seccion 6.2). Todo queda
-   bajo .dash para no tocar el look de la tienda publica (index.css), que usa
-   su propia paleta/tipografia. */
+/* Design system del dashboard (ver docs/EP2_PLAN.md seccion 6.2). Las clases
+   dash-* quedan fuera del selector .dash a proposito (los tokens viven en
+   :root) porque algunos elementos (toasts, modales) se montan en el root del
+   arbol de React, fuera del <div class="dash">; no afecta a la tienda
+   publica (index.css) porque sus nombres de variable no colisionan. */
 
-.dash {
+:root {
   --dash-bg: #faf6f1;
   --dash-surface: #ffffff;
   --dash-sidebar: #f5ebdd;
@@ -19,7 +21,9 @@
   --dash-shadow: 0 6px 20px rgba(92, 52, 32, 0.08);
   --dash-font-ui: 'Poppins', 'Segoe UI', system-ui, sans-serif;
   --dash-font-display: 'Playfair Display', Georgia, serif;
+}
 
+.dash {
   display: flex;
   flex-direction: column;
   min-height: 100vh;

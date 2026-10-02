@@ -1,20 +1,40 @@
 import { useEffect, useState } from 'react';
 import { useApiClient } from '../services/apiClient';
+import { useToasts } from '../context/ToastContext.jsx';
+import { useUserRole } from '../hooks/useUserRole';
 import { badgeClassForEstado } from '../utils/badges';
 
-const ESTADOS = ['Pendiente', 'En preparación', 'Listo', 'Entregado', 'Cancelado'];
+// Espejo de MaquinaEstadosPedido (ver ms-pedidos/service/MaquinaEstadosPedido):
+// que transiciones son validas desde cada estado. El backend es quien manda
+// (vuelve a validarlo y responde 409 si no corresponde); esto solo evita
+// ofrecer opciones que de entrada van a fallar.
+const TRANSICIONES = {
+  PENDIENTE_PAGO: ['PAGADO', 'PAGO_RECHAZADO'],
+  PAGADO: ['EN_PREPARACION', 'CANCELADO'],
+  EN_PREPARACION: ['LISTO', 'CANCELADO'],
+  LISTO: ['ENTREGADO'],
+  ENTREGADO: [],
+  PAGO_RECHAZADO: [],
+  CANCELADO: [],
+};
 
 export default function Pedidos() {
   const { callApi } = useApiClient();
+  const toasts = useToasts();
+  const role = useUserRole();
+  // Matriz de roles (ver docs/EP2_PLAN.md seccion 4): ADMIN y BARISTA pueden
+  // cambiar el estado; BARISTA no puede cancelar. CAJERO/GERENTE solo ven.
+  const puedeCambiarEstado = role === 'ADMIN' || role === 'BARISTA';
+  const puedeCancelar = role === 'ADMIN';
+
   const [pedidos, setPedidos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
   const [actualizando, setActualizando] = useState(null);
 
   useEffect(() => {
-    // Esta llamada pasa por: React -> BFF (valida JWT) -> ms-pedidos
     callApi('/pedidos')
-      .then((data) => setPedidos(data))
+      .then(setPedidos)
       .catch((err) => {
         console.error(err);
         setError('No se pudieron cargar los pedidos (revisa el token o el backend).');
@@ -26,14 +46,29 @@ export default function Pedidos() {
   const cambiarEstado = async (pedido, nuevoEstado) => {
     setActualizando(pedido.id);
     try {
-      const actualizado = await callApi(`/pedidos/${pedido.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ ...pedido, estado: nuevoEstado }),
+      const actualizado = await callApi(`/pedidos/${pedido.id}/estado`, {
+        method: 'PATCH',
+        body: JSON.stringify({ nuevoEstado }),
       });
       setPedidos((prev) => prev.map((p) => (p.id === pedido.id ? actualizado : p)));
+      toasts.success(`Pedido ${pedido.codigoSeguimiento?.slice(0, 8) || pedido.id} actualizado a ${nuevoEstado}.`);
     } catch (err) {
       console.error(err);
-      setError(`No se pudo actualizar el pedido #${pedido.id}.`);
+      toasts.error(err.message || `No se pudo actualizar el pedido.`);
+    } finally {
+      setActualizando(null);
+    }
+  };
+
+  const cancelar = async (pedido) => {
+    setActualizando(pedido.id);
+    try {
+      const actualizado = await callApi(`/pedidos/${pedido.id}`, { method: 'DELETE' });
+      setPedidos((prev) => prev.map((p) => (p.id === pedido.id ? actualizado : p)));
+      toasts.success('Pedido cancelado.');
+    } catch (err) {
+      console.error(err);
+      toasts.error(err.message || 'No se pudo cancelar el pedido.');
     } finally {
       setActualizando(null);
     }
@@ -65,29 +100,72 @@ export default function Pedidos() {
       )}
 
       {!cargando && pedidos.length > 0 && (
-        <div className="orders-list">
-            {pedidos.map((p) => (
-              <div key={p.id} className="order-card">
-                <span className="order-card__id">Pedido #{p.id}</span>
-                <span className={badgeClassForEstado(p.estado)}>{p.estado || 'Sin estado'}</span>
-                <span className="order-card__total">${p.total}</span>
-                <select
-                  className="role-switcher"
-                  value={p.estado || ''}
-                  disabled={actualizando === p.id}
-                  onChange={(e) => cambiarEstado(p, e.target.value)}
-                >
-                  {!ESTADOS.includes(p.estado) && p.estado && <option value={p.estado}>{p.estado}</option>}
-                  {ESTADOS.map((estado) => (
-                    <option key={estado} value={estado}>
-                      {estado}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="dash-table-wrap">
+          <table className="dash-table">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Cliente</th>
+                <th>Canal</th>
+                <th>Total</th>
+                <th>Estado</th>
+                {(puedeCambiarEstado || puedeCancelar) && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {pedidos.map((p) => {
+                const siguientes = TRANSICIONES[p.estado] || [];
+                const puedeCancelarEste = puedeCancelar && siguientes.includes('CANCELADO');
+                return (
+                  <tr key={p.id}>
+                    <td>{p.codigoSeguimiento ? p.codigoSeguimiento.slice(0, 8) : `#${p.id}`}</td>
+                    <td>{p.clienteNombre || '—'}</td>
+                    <td>{p.canal}</td>
+                    <td>${p.total}</td>
+                    <td>
+                      <span className={badgeClassForEstado(p.estado)}>{p.estado || 'Sin estado'}</span>
+                    </td>
+                    {(puedeCambiarEstado || puedeCancelar) && (
+                      <td>
+                        <div className="dash-table__actions">
+                          {puedeCambiarEstado && siguientes.length > 0 && (
+                            <select
+                              className="dash-select"
+                              value=""
+                              disabled={actualizando === p.id}
+                              onChange={(e) => e.target.value && cambiarEstado(p, e.target.value)}
+                            >
+                              <option value="" disabled>
+                                Cambiar a...
+                              </option>
+                              {siguientes
+                                .filter((s) => s !== 'CANCELADO')
+                                .map((estado) => (
+                                  <option key={estado} value={estado}>
+                                    {estado}
+                                  </option>
+                                ))}
+                            </select>
+                          )}
+                          {puedeCancelarEste && (
+                            <button
+                              className="dash-icon-btn dash-icon-btn--danger"
+                              disabled={actualizando === p.id}
+                              onClick={() => cancelar(p)}
+                            >
+                              Cancelar
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

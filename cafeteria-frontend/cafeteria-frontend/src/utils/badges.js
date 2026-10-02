@@ -3,7 +3,7 @@ export function badgeClassForEstado(estado = '') {
   if (['listo', 'entregado', 'completado', 'pagado', 'aprobado', 'exitoso'].includes(normalizado)) {
     return 'badge badge--success';
   }
-  if (['cancelado', 'anulado', 'rechazado', 'fallido'].includes(normalizado)) {
+  if (['cancelado', 'anulado', 'rechazado', 'fallido', 'pago_rechazado'].includes(normalizado)) {
     return 'badge badge--error';
   }
   if (!estado) {
