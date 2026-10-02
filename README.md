@@ -633,3 +633,63 @@ curl -i -X DELETE http://localhost:8080/api/rabbitmq/queues/pagos.pedido-creado.
 ### Qué queda pendiente
 - Fase 5: página "Mensajería" en el frontend que consuma esta API.
 
+## 15. EP2 — Fase 6: Terraform + despliegue en AWS
+
+Todo el stack (8 microservicios + `bff-gateway` + `ms-notificaciones` + `ms-rabbitmq-admin` + frontend +
+cluster RabbitMQ + Postgres) corre en **una sola EC2** creada con Terraform, compatible con **AWS Academy
+Learner Lab**: usa el key pair `vockey` y el `LabInstanceProfile` ya existentes y no crea ningún rol ni
+política IAM (el Lab no lo permite). Delante de la EC2 va un **API Gateway** (HTTP API) que reenvía
+`/api/**` al `bff-gateway` en el puerto 8080.
+
+Archivos nuevos en [`infra/terraform/`](infra/terraform/) (detalle completo en su propio
+[README](infra/terraform/README.md)):
+
+| Archivo | Contenido |
+|---|---|
+| `versions.tf` | providers `aws ~> 5.0` y `random ~> 3.6`, Terraform `>= 1.5` |
+| `variables.tf` | región, tipo de instancia, `key_name`/`iam_instance_profile` del Lab, `my_ip_cidr`, datos de Azure, passwords sensibles (`db_password`, `rabbitmq_password`, `rabbitmq_erlang_cookie`) |
+| `main.tf` | AMI Ubuntu 22.04 (data source Canonical), Security Group (22 y 15672 solo desde `my_ip_cidr`; 80/443 públicos; 8080 para el API Gateway), Elastic IP, la instancia EC2 (disco gp3 30 GB) con su `user_data` |
+| `monitoring.tf` | alarmas CloudWatch `StatusCheckFailed_System` (recover) y `StatusCheckFailed_Instance` (reboot), desactivables con `enable_recovery_alarms` |
+| `apigateway.tf` | API Gateway HTTP API → `HTTP_PROXY` hacia `http://<EIP>:8080/api/{proxy}`, inyectando el header `X-Origin-Verify` (parameter mapping) |
+| `user_data.sh.tftpl` | instala Docker + plugin de compose, crea 4 GB de swap, clona el repo, genera el `.env` y un certificado autofirmado para nginx, crea y habilita el servicio systemd `cafeteria.service` |
+| `outputs.tf` | IP elástica, URL del frontend, URL del API Gateway, URL de la UI de RabbitMQ, comando SSH |
+| `terraform.tfvars.example` | ejemplo sin secretos reales |
+
+### Filtro `X-Origin-Verify` en el BFF
+
+`OriginVerifyGlobalFilter` (nuevo, `bff-gateway/.../filter/`) exige el header `X-Origin-Verify` en toda
+petición **solo si** la variable de entorno `ORIGIN_VERIFY_SECRET` no está vacía. El API Gateway de
+Terraform genera ese secreto (`random_password`) y lo inyecta en cada petición que reenvía; si alguien le
+pega directo al puerto 8080 de la EC2 saltándose el API Gateway, no trae el header y el BFF responde
+**403** (prueba S8 de `docs/EP2_PLAN.md` sección 11). En local / Docker Compose, `ORIGIN_VERIFY_SECRET`
+queda vacío por defecto y el filtro no exige nada: no rompe nada de lo que ya funcionaba.
+
+También se parametrizó el password de Postgres (`DB_PASSWORD`, antes fijo en `cafeteria` dentro de
+`docker-compose.yml`) para que Terraform pueda generarlo en EC2 sin tocar el compose; en local sigue
+usando `cafeteria` por defecto si no defines la variable.
+
+### Cómo probarlo
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars   # completa tus valores reales
+terraform init
+terraform plan
+terraform apply                                 # escribe "yes"
+terraform output                                # IP elástica, URLs, comando SSH
+
+# Validar sin credenciales de AWS (no aplica nada, solo valida sintaxis):
+terraform init -backend=false
+terraform validate
+terraform fmt -check
+
+# S8 una vez desplegado: pegarle directo al puerto 8080 de la EC2 (sin pasar
+# por el API Gateway) debe responder 403.
+curl -i http://<EIP_ELASTICA>:8080/api/productos
+```
+
+### Qué queda pendiente
+- Fase 7: colección Postman, script de smoke test y documentación final (sección 11 del plan).
+- Ejecutar `terraform apply` en una sesión real del Learner Lab (los pasos de Azure/AWS de las secciones
+  7 y 8.3 del plan los hace la persona, no el agente).
+

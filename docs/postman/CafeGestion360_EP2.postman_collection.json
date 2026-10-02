@@ -1,0 +1,691 @@
+{
+  "info": {
+    "_postman_id": "a1e2c3d4-cafe-4e21-9a36-cafegestion360",
+    "name": "CafeGestion360 EP2",
+    "description": "Pruebas funcionales de docs/EP2_PLAN.md sección 11 (seguridad + mensajería). Requiere SPRING_PROFILES_ACTIVE vacío (Azure real) para que S2-S6/S8 tengan sentido: con el perfil 'noauth' todo queda permitAll y esas pruebas no aplican. Completa los tokens (adminToken, baristaToken, etc.) en el Environment pegando un access token válido de cada usuario de prueba (ver docs/EP2_PLAN.md sección 7, paso 11: verificalos antes en https://jwt.ms).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "S - Seguridad",
+      "item": [
+        {
+          "name": "S1 - GET productos sin token -> 200 (publico)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/productos", "host": ["{{baseUrl}}"], "path": ["api", "productos"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S1: 200 OK sin token', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S2 - GET pedidos sin token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/pedidos", "host": ["{{baseUrl}}"], "path": ["api", "pedidos"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S2: 401 sin token', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S3 - DELETE producto con token BARISTA -> 403",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{baristaToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/productos/{{productoIdDemo}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "productos", "{{productoIdDemo}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S3: 403 con rol BARISTA', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S4 - DELETE producto con token ADMIN -> 204",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/productos/{{productoIdDemo}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "productos", "{{productoIdDemo}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S4: 204 con rol ADMIN', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S5 - GET pedidos con token alterado -> 401",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}alterado" }],
+            "url": { "raw": "{{baseUrl}}/api/pedidos", "host": ["{{baseUrl}}"], "path": ["api", "pedidos"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S5: 401 con firma invalida', function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S6 - GET /api/me con ADMIN -> roles correctos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/me", "host": ["{{baseUrl}}"], "path": ["api", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S6: 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('S6: incluye el rol ADMIN', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.roles).to.include('ADMIN');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S6 - GET /api/me con BARISTA -> roles correctos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{baristaToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/me", "host": ["{{baseUrl}}"], "path": ["api", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S6: 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('S6: incluye el rol BARISTA', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.roles).to.include('BARISTA');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S6 - GET /api/me con CAJERO -> roles correctos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{cajeroToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/me", "host": ["{{baseUrl}}"], "path": ["api", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S6: 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('S6: incluye el rol CAJERO', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.roles).to.include('CAJERO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S6 - GET /api/me con GERENTE -> roles correctos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{gerenteToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/me", "host": ["{{baseUrl}}"], "path": ["api", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S6: 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('S6: incluye el rol GERENTE', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.roles).to.include('GERENTE');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S6 - GET /api/me con BODEGUERO -> roles correctos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{bodegueroToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/me", "host": ["{{baseUrl}}"], "path": ["api", "me"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S6: 200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('S6: incluye el rol BODEGUERO', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.roles).to.include('BODEGUERO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S8 - Pegarle directo a la EC2 (sin API Gateway) -> 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{ec2DirectUrl}}/api/pedidos", "host": ["{{ec2DirectUrl}}"], "path": ["api", "pedidos"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('S8: 403 por X-Origin-Verify (solo en EC2 desplegada con Terraform)', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Checkout publico",
+      "item": [
+        {
+          "name": "S10 / M2 - Checkout con tarjeta OK",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": { \"nombre\": \"Cliente Postman\", \"email\": \"postman@cafegestion360.cl\" },\n  \"items\": [ { \"productoId\": 1, \"cantidad\": 2 } ],\n  \"pago\": { \"metodo\": \"CREDITO\", \"numeroTarjeta\": \"4111111111111234\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/public/checkout", "host": ["{{baseUrl}}"], "path": ["api", "public", "checkout"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Checkout OK: 200/201', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "const body = pm.response.json();",
+                  "pm.test('Trae codigoSeguimiento', function () { pm.expect(body.codigoSeguimiento).to.be.a('string'); });",
+                  "pm.environment.set('codigoSeguimientoOk', body.codigoSeguimiento);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "S10 / M2 - Seguimiento del pedido OK",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/public/pedidos/{{codigoSeguimientoOk}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "public", "pedidos", "{{codigoSeguimientoOk}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Trae estado', function () { pm.expect(pm.response.json().estado).to.be.a('string'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M3 - Checkout con tarjeta 0000 (rechazo)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": { \"nombre\": \"Cliente Rechazo\", \"email\": \"rechazo@cafegestion360.cl\" },\n  \"items\": [ { \"productoId\": 1, \"cantidad\": 1 } ],\n  \"pago\": { \"metodo\": \"CREDITO\", \"numeroTarjeta\": \"4111111111110000\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/public/checkout", "host": ["{{baseUrl}}"], "path": ["api", "public", "checkout"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Checkout aceptado: 200/201', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "pm.environment.set('codigoSeguimientoRechazo', pm.response.json().codigoSeguimiento);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M3 - Seguimiento -> PAGO_RECHAZADO (esperar unos segundos y reenviar)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/public/pedidos/{{codigoSeguimientoRechazo}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "public", "pedidos", "{{codigoSeguimientoRechazo}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('Estado es PAGO_RECHAZADO (reenvia esta request si todavia dice PENDIENTE_PAGO: el pago se procesa asincronicamente)', function () {",
+                  "  pm.expect(pm.response.json().estado).to.eql('PAGO_RECHAZADO');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M4 - Checkout con tarjeta 9999 (reintentos -> DLQ)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": { \"nombre\": \"Cliente Reintentos\", \"email\": \"reintentos@cafegestion360.cl\" },\n  \"items\": [ { \"productoId\": 1, \"cantidad\": 1 } ],\n  \"pago\": { \"metodo\": \"CREDITO\", \"numeroTarjeta\": \"4111111111119999\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/public/checkout", "host": ["{{baseUrl}}"], "path": ["api", "public", "checkout"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Checkout aceptado: 200/201', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "pm.environment.set('codigoSeguimientoReintentos', pm.response.json().codigoSeguimiento);",
+                  "console.log('Espera ~30s (3 reintentos) y revisa GET /api/rabbitmq/dlq: debe aparecer pagos.pedido-creado.queue.dlq con 1 mensaje');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M5 - Checkout con tarjeta 8888 (DLQ inmediato)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cliente\": { \"nombre\": \"Cliente DLQ Inmediato\", \"email\": \"dlq@cafegestion360.cl\" },\n  \"items\": [ { \"productoId\": 1, \"cantidad\": 1 } ],\n  \"pago\": { \"metodo\": \"CREDITO\", \"numeroTarjeta\": \"4111111111118888\" }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/public/checkout", "host": ["{{baseUrl}}"], "path": ["api", "public", "checkout"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Checkout aceptado: 200/201', function () { pm.expect(pm.response.code).to.be.oneOf([200, 201]); });",
+                  "pm.environment.set('codigoSeguimientoDlqInmediata', pm.response.json().codigoSeguimiento);",
+                  "console.log('Revisa GET /api/rabbitmq/dlq de inmediato: debe aparecer sin esperar reintentos');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Mensajeria - RabbitMQ Admin",
+      "item": [
+        {
+          "name": "M1 - GET /api/rabbitmq/queues -> 16 colas",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/queues", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "queues"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('M1: al menos 16 colas (8 principales + 8 DLQ)', function () {",
+                  "  pm.expect(pm.response.json().length).to.be.at.least(16);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M1 - GET /api/rabbitmq/exchanges -> 4 exchanges",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/exchanges", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "exchanges"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+                  "pm.test('M1: al menos 4 exchanges', function () {",
+                  "  pm.expect(pm.response.json().length).to.be.at.least(4);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/rabbitmq/cluster -> estado de los 3 nodos",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/cluster", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "cluster"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', function () { pm.response.to.have.status(200); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M8a - Crear cola con nombre vacio -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"\" }" },
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/queues", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "queues"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M8a: 400 nombre vacio', function () { pm.response.to.have.status(400); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M8b - Crear cola con nombre invalido 'Mi Cola!' -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"Mi Cola!\" }" },
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/queues", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "queues"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M8b: 400 nombre invalido', function () { pm.response.to.have.status(400); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M8c - Crear cola con prefijo reservado 'amq.x' -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"amq.x\" }" },
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/queues", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "queues"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M8c: 400 prefijo amq. reservado', function () { pm.response.to.have.status(400); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M9a - Crear cola de demo -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"{{colaDemo}}\" }" },
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/queues", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "queues"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M9a: 201 Created', function () { pm.response.to.have.status(201); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M9b - Crear binding de la cola de demo -> 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"queue\": \"{{colaDemo}}\", \"exchange\": \"cafeteria.pedidos.exchange\", \"routingKey\": \"pedido.creado\" }"
+            },
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/bindings", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "bindings"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M9b: 201 Created', function () { pm.response.to.have.status(201); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M9c - Eliminar el binding de demo -> 204",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"queue\": \"{{colaDemo}}\", \"exchange\": \"cafeteria.pedidos.exchange\", \"routingKey\": \"pedido.creado\" }"
+            },
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/bindings", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "bindings"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M9c: 204 No Content', function () { pm.response.to.have.status(204); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M9d - Eliminar la cola de demo -> 204",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/rabbitmq/queues/{{colaDemo}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rabbitmq", "queues", "{{colaDemo}}"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M9d: 204 No Content', function () { pm.response.to.have.status(204); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M10 - Borrar cola protegida 'pagos.pedido-creado.queue' -> 409",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/rabbitmq/queues/pagos.pedido-creado.queue",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rabbitmq", "queues", "pagos.pedido-creado.queue"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('M10: 409 cola protegida', function () { pm.response.to.have.status(409); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /api/rabbitmq/dlq -> resumen de DLQ",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/rabbitmq/dlq", "host": ["{{baseUrl}}"], "path": ["api", "rabbitmq", "dlq"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('200 OK', function () { pm.response.to.have.status(200); });"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "M11 - Reprocesar pagos.pedido-creado.queue.dlq",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }],
+            "url": {
+              "raw": "{{baseUrl}}/api/rabbitmq/dlq/pagos.pedido-creado.queue.dlq/reprocess?max=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "rabbitmq", "dlq", "pagos.pedido-creado.queue.dlq", "reprocess"],
+              "query": [{ "key": "max", "value": "10" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('M11: 200 OK (ejecuta despues de M4, cuando ya hay mensajes en la DLQ)', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ]
+}

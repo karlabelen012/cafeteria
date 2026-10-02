@@ -23,7 +23,7 @@ x-backend-common: &backend-common
     JAVA_TOOL_OPTIONS: "-Xms64m -Xmx256m -XX:MaxMetaspaceSize=128m -XX:+UseSerialGC"
     DB_URL: jdbc:postgresql://postgres:5432/cafeteria
     DB_USER: cafeteria
-    DB_PASSWORD: cafeteria
+    DB_PASSWORD: ${DB_PASSWORD:-cafeteria}
     AZURE_ISSUER_URI: ${AZURE_ISSUER_URI:-https://login.microsoftonline.com/<TENANT_ID>/v2.0}
     AZURE_AUDIENCES: ${AZURE_AUDIENCES:-api://cafeteria-backend}
     AZURE_JWK_SET_URI: ${AZURE_JWK_SET_URI:-}
@@ -39,7 +39,7 @@ services:
     environment:
       POSTGRES_DB: cafeteria
       POSTGRES_USER: cafeteria
-      POSTGRES_PASSWORD: cafeteria
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cafeteria}
     ports:
       - "5432:5432"
     volumes:
@@ -380,6 +380,11 @@ services:
       AZURE_AUDIENCES: ${AZURE_AUDIENCES:-api://cafeteria-backend}
       AZURE_JWK_SET_URI: ${AZURE_JWK_SET_URI:-}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:4200}
+      # Vacio en local/Docker Compose (sin API Gateway delante): el filtro
+      # OriginVerifyGlobalFilter no exige nada. En EC2, el API Gateway de
+      # Terraform inyecta este mismo valor en cada peticion (ver
+      # infra/terraform/apigateway.tf y docs/EP2_PLAN.md seccion 8.2).
+      ORIGIN_VERIFY_SECRET: ${ORIGIN_VERIFY_SECRET:-}
       MS_PRODUCTOS_URL: http://ms-productos:8081
       MS_INVENTARIO_URL: http://ms-inventario:8082
       MS_PEDIDOS_URL: http://ms-pedidos:8083
