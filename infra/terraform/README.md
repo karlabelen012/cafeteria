@@ -20,21 +20,35 @@ sección 8.
 | `apigateway.tf` | API Gateway HTTP API → proxy hacia el BFF en el puerto 8080, inyectando `X-Origin-Verify` |
 | `user_data.sh.tftpl` | script de primer arranque: Docker, swap, clona el repo, genera `.env` y el certificado autofirmado, crea el servicio systemd `cafeteria.service` |
 | `outputs.tf` | IP elástica, URLs, comando SSH, secreto de `X-Origin-Verify` |
+| `backend.tf` | backend remoto S3 + bloqueo DynamoDB (vacío: se configura en `init-backend.sh`) |
+| `init-backend.sh` | crea (si no existen) el bucket S3 y la tabla DynamoDB del state remoto, y corre `terraform init` apuntando a ellos — lo usan tanto GitHub Actions como vos en local |
 
 ## Requisitos
 
-- Terraform >= 1.5.
-- Una sesión activa de **AWS Academy Learner Lab** con credenciales en
-  `~/.aws/credentials` (incluye `aws_session_token`; caducan con cada sesión).
+- Terraform >= 1.5 y AWS CLI v2.
+- Una sesión activa de **AWS Academy Learner Lab**: copia `aws_access_key_id`,
+  `aws_secret_access_key` y `aws_session_token` desde "AWS Details" a
+  `~/.aws/credentials` (caducan cada pocas horas, hay que renovarlas).
 - Tu IP pública (para `my_ip_cidr`).
 - Los datos de tus App Registrations de Azure (sección 7 / 7-bis del plan).
 
-## Uso
+## Por qué hay un backend remoto (S3 + DynamoDB)
+
+El state de Terraform **no** vive solo en tu disco: `init-backend.sh` crea (la
+primera vez) un bucket S3 (`cafegestion360-tfstate-<tu-account-id>`) y una
+tabla DynamoDB (`cafegestion360-tfstate-lock`) y configura `terraform init`
+para usarlos. Es imprescindible para que GitHub Actions funcione (cada
+workflow corre en una máquina nueva y vacía: sin backend remoto, cada
+`apply` no encontraría el state anterior y volvería a crear una EC2 nueva,
+dejando la vieja huérfana) y también sirve en local para no perder el state
+si reinstalás tu máquina.
+
+## Uso (local, desde tu terminal)
 
 ```bash
 cd infra/terraform
 cp terraform.tfvars.example terraform.tfvars   # completa tus valores reales
-terraform init
+./init-backend.sh                               # crea el backend remoto (si no existe) + terraform init
 terraform plan
 terraform apply                                 # escribe "yes"
 terraform output                                # IP, URLs
@@ -72,11 +86,61 @@ terraform validate
 terraform fmt -check
 ```
 
-### Al terminar el semestre
+### Al terminar el semestre (o cada vez que cierres la sesión del Lab)
 
 ```bash
+./init-backend.sh
 terraform destroy
 ```
+
+## CI/CD con GitHub Actions
+
+Dos workflows en [`.github/workflows/`](../../.github/workflows/), **ambos
+solo con disparo manual** (`workflow_dispatch`): las credenciales de AWS
+Academy Learner Lab duran unas pocas horas, así que automatizarlos en cada
+push fallaría la mayoría de las veces y además re-aplicaría infraestructura
+real sin que nadie lo pidiera.
+
+| Workflow | Qué hace |
+|---|---|
+| `terraform-deploy.yml` | `terraform plan` + `apply` contra AWS. Pide confirmar la rama que la EC2 va a clonar (`repo_branch`, por defecto `deploy`). Publica los outputs (IP, URLs) en el resumen del job. |
+| `terraform-destroy.yml` | `terraform destroy`. Pide escribir literalmente `destruir` en el input `confirmar` para evitar un click accidental. |
+
+### Cómo correrlos
+
+1. **Cada vez que arranques el AWS Academy Learner Lab**: "AWS Details" →
+   copia `aws_access_key_id`, `aws_secret_access_key` y `aws_session_token` →
+   actualiza los secrets `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` y
+   `AWS_SESSION_TOKEN` del repo (Settings → Secrets and variables → Actions).
+   Son temporales: si el workflow falla con un error de autenticación, es
+   casi siempre porque el token ya venció.
+2. Pestaña **Actions** → elige "Terraform - Deploy a AWS (Academy Lab)" →
+   **Run workflow** → elige la rama del propio workflow (da igual, el código
+   que se despliega en la EC2 es el de `repo_branch`) y el valor de
+   `repo_branch` (por defecto `deploy`; asegurate de haber pusheado esa rama
+   antes).
+3. Para apagar todo: "Terraform - Destruir infraestructura AWS" → **Run
+   workflow** → escribe `destruir` en el campo de confirmación.
+
+### Secrets necesarios en el repo
+
+| Secret | Para qué |
+|---|---|
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` | credenciales temporales de AWS Academy |
+| `AWS_REGION` | opcional, default `us-east-1` |
+| `MY_IP_CIDR` | tu IP pública en formato CIDR, para `variables.tf` |
+| `AZURE_TENANT_ID`, `AZURE_BACKEND_CLIENT_ID`, `AZURE_FRONTEND_CLIENT_ID`, `AZURE_ISSUER_URI` | datos de tus App Registrations (sección 7 del plan) |
+| `AZURE_JWK_SET_URI`, `AZURE_AUTHORITY` | solo tenants External ID (ciamlogin); dejalos vacíos si no aplica |
+| `DB_PASSWORD`, `RABBITMQ_PASSWORD`, `RABBITMQ_ERLANG_COOKIE` | passwords de Postgres y RabbitMQ |
+| `ENABLE_RECOVERY_ALARMS` | opcional, default `true` |
+
+`repo_url` **no** es un secret: el workflow lo arma solo con
+`https://github.com/<owner>/<repo>.git` (`github.repository`), así que la
+EC2 siempre clona el mismo repo donde corre el workflow.
+
+No hace falta configurar nada de backend remoto en los secrets: el workflow
+corre `init-backend.sh`, que crea/reutiliza el bucket S3 y la tabla DynamoDB
+automáticamente a partir del Account ID de las credenciales que le pasaste.
 
 ## Notas de diseño
 
@@ -99,3 +163,11 @@ terraform destroy
   instancia al cerrar la sesión del lab. `cafeteria.service` (habilitado con
   `systemctl enable`) hace `docker compose up -d --build` en cada arranque,
   así que al reabrir el lab todo vuelve a subir solo, con la misma Elastic IP.
+- **Backend S3 + DynamoDB en vez de state local**: necesario para que
+  GitHub Actions (runners efímeros, sin disco persistente entre corridas) y
+  tu máquina local compartan el mismo state. El nombre del bucket incluye el
+  Account ID (`cafegestion360-tfstate-<account-id>`) para que sea único sin
+  tener que inventarlo ni guardarlo como secret aparte. `init-backend.sh` no
+  borra el bucket/tabla en ningún flujo (ni siquiera el de destroy): son
+  baratos de dejar y evitan tener que recrear el backend en cada sesión del
+  Lab.

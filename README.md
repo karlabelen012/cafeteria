@@ -654,6 +654,26 @@ Archivos nuevos en [`infra/terraform/`](infra/terraform/) (detalle completo en s
 | `user_data.sh.tftpl` | instala Docker + plugin de compose, crea 4 GB de swap, clona el repo, genera el `.env` y un certificado autofirmado para nginx, crea y habilita el servicio systemd `cafeteria.service` |
 | `outputs.tf` | IP elástica, URL del frontend, URL del API Gateway, URL de la UI de RabbitMQ, comando SSH |
 | `terraform.tfvars.example` | ejemplo sin secretos reales |
+| `backend.tf` + `init-backend.sh` | backend remoto (S3 + bloqueo DynamoDB) para que el state no viva solo en un disco: imprescindible para que GitHub Actions (runners nuevos en cada corrida) y tu máquina local compartan el mismo state |
+
+### CI/CD: `.github/workflows/terraform-deploy.yml` y `terraform-destroy.yml`
+
+Dos workflows, **ambos solo con disparo manual** (`workflow_dispatch`): las credenciales temporales de
+AWS Academy Learner Lab duran unas pocas horas, así que correrlos en cada push fallaría la mayoría de las
+veces y además re-aplicaría infraestructura real sin que nadie lo pidiera. `terraform-deploy.yml` corre
+`plan` + `apply` y publica la IP/URLs en el resumen del job; `terraform-destroy.yml` corre `destroy` y pide
+escribir `destruir` para confirmar. Ambos arrancan con `init-backend.sh` (crean el bucket S3 y la tabla
+DynamoDB si no existen) para no duplicar infraestructura entre corridas. Detalle de los secrets necesarios
+(`AWS_ACCESS_KEY_ID`, `MY_IP_CIDR`, los datos de Azure, los passwords) en
+[`infra/terraform/README.md`](infra/terraform/README.md#secrets-necesarios-en-el-repo).
+
+### RabbitMQ en el dashboard
+
+Ya implementado en la Fase 5 (no es parte de esta fase, se deja constancia porque se preguntó): el panel
+"Estado de mensajería" de `DashboardHome.jsx` (ADMIN) muestra el KPI "Mensajes en DLQ", el estado del
+cluster (nodos activos), la tabla de colas con botón "Reprocesar" para las DLQ con mensajes, y hay una
+página `Mensajeria.jsx` dedicada para crear/eliminar colas, exchanges y bindings contra
+`ms-rabbitmq-admin`.
 
 ### Filtro `X-Origin-Verify` en el BFF
 
@@ -673,7 +693,7 @@ usando `cafeteria` por defecto si no defines la variable.
 ```bash
 cd infra/terraform
 cp terraform.tfvars.example terraform.tfvars   # completa tus valores reales
-terraform init
+./init-backend.sh                               # crea el backend S3+DynamoDB (si no existe) + terraform init
 terraform plan
 terraform apply                                 # escribe "yes"
 terraform output                                # IP elástica, URLs, comando SSH
@@ -686,10 +706,67 @@ terraform fmt -check
 # S8 una vez desplegado: pegarle directo al puerto 8080 de la EC2 (sin pasar
 # por el API Gateway) debe responder 403.
 curl -i http://<EIP_ELASTICA>:8080/api/productos
+
+# O desde GitHub: pestaña Actions -> "Terraform - Deploy a AWS (Academy Lab)" -> Run workflow
+# (después de cargar los secrets del repo, ver infra/terraform/README.md)
 ```
 
 ### Qué queda pendiente
-- Fase 7: colección Postman, script de smoke test y documentación final (sección 11 del plan).
-- Ejecutar `terraform apply` en una sesión real del Learner Lab (los pasos de Azure/AWS de las secciones
-  7 y 8.3 del plan los hace la persona, no el agente).
+- Ejecutar el deploy en una sesión real del Learner Lab, ya sea `terraform apply` local o el workflow de
+  GitHub Actions (los pasos de Azure/AWS de las secciones 7 y 8.3 del plan los hace la persona, no el
+  agente).
+
+## 16. EP2 — Fase 7: pruebas, evidencias y documentación
+
+### Colección Postman
+[`docs/postman/CafeGestion360_EP2.postman_collection.json`](docs/postman/CafeGestion360_EP2.postman_collection.json)
++ [`CafeGestion360_EP2.postman_environment.json`](docs/postman/CafeGestion360_EP2.postman_environment.json),
+con las pruebas con status code de la sección 11 del plan, en 3 carpetas:
+
+- **S - Seguridad**: S1 (público 200), S2 (sin token 401), S3/S4 (BARISTA 403 / ADMIN 204 sobre el mismo
+  DELETE), S5 (token alterado 401), S6 (`GET /api/me` por cada uno de los 5 roles), S8 (pegarle directo al
+  puerto 8080 de la EC2 sin pasar por el API Gateway -> 403).
+- **Checkout público**: checkout con tarjeta normal + seguimiento hasta `PAGADO` (S10/M2), tarjeta `0000`
+  hasta `PAGO_RECHAZADO` (M3), tarjeta `9999` (reintentos -> DLQ, M4) y `8888` (DLQ inmediato, M5).
+- **Mensajería - RabbitMQ Admin**: conteo de colas/exchanges (M1), crear cola con nombre vacío / inválido /
+  con prefijo `amq.` -> 400 (M8), crear cola + binding + borrar binding + borrar cola -> 201/201/204/204
+  (M9), borrar cola protegida -> 409 (M10), reprocesar una DLQ (M11).
+
+Los tokens (`adminToken`, `baristaToken`, etc.) se completan a mano en el Environment con un access token
+real de cada usuario de prueba (sección 7, paso 11). Sin Azure configurado (perfil `noauth`), las pruebas
+de seguridad no aplican porque todo queda `permitAll`.
+
+### Script de smoke test
+[`scripts/smoke-test.sh`](scripts/smoke-test.sh) recorre con `curl`, sin depender de Postman: productos
+públicos, un checkout completo con polling cada 3 s hasta `PAGADO`, un checkout con tarjeta `9999` con
+espera de ~35 s (3 reintentos) y verificación de que el mensaje cae en
+`pagos.pedido-creado.queue.dlq`, y los endpoints principales de `ms-rabbitmq-admin` (listar, crear cola
+inválida -> 400, borrar protegida -> 409, crear/borrar cola de prueba).
+
+```bash
+# Sin token (perfil noauth, o solo las pruebas públicas):
+./scripts/smoke-test.sh
+
+# Contra otra URL y con las pruebas de ms-rabbitmq-admin (requieren rol ADMIN):
+./scripts/smoke-test.sh http://localhost:8080 "<ACCESS_TOKEN_ADMIN>"
+```
+
+### Documentación
+Esta Fase consolida lo que ya se fue documentando fase a fase en este mismo README (arquitectura en la
+sección "Qué tiene el proyecto", diagrama al inicio de la sección 11 original, tabla de colas/exchanges en
+el Anexo Fase 3 de `docs/EP2_PLAN.md`, matriz de roles en la sección 4 del plan) más la Fase 6 (Terraform +
+CI/CD). `.gitignore` ya excluye `target/`, `node_modules/`, `.env`, `*.tfstate`, `terraform.tfvars` y
+`data/` (verificado: cada módulo tiene su propio `.gitignore` para `target/`/`data/`/`node_modules/`, y
+`infra/terraform/.gitignore` cubre el state y los `.tfvars`).
+
+### Cómo probarlo
+```bash
+# Postman: importa los dos archivos de docs/postman/ en Postman (o Newman) y corre la colección.
+newman run docs/postman/CafeGestion360_EP2.postman_collection.json \
+  -e docs/postman/CafeGestion360_EP2.postman_environment.json
+
+# Smoke test:
+chmod +x scripts/smoke-test.sh
+./scripts/smoke-test.sh http://localhost:8080
+```
 

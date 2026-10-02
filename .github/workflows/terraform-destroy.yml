@@ -1,0 +1,64 @@
+name: Terraform - Destruir infraestructura AWS
+
+# Solo manual y con confirmación explícita: apaga TODO (EC2, Elastic IP,
+# API Gateway, Security Group, alarmas). Úsalo al terminar la sesión del
+# AWS Academy Learner Lab para no seguir gastando crédito. No borra el
+# bucket S3 ni la tabla DynamoDB del backend remoto (ver init-backend.sh):
+# así el próximo "Terraform - Deploy" reutiliza el mismo state.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: "Escribe 'destruir' para confirmar que quieres borrar toda la infraestructura"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cafeteria360-terraform
+  cancel-in-progress: false
+
+jobs:
+  destroy:
+    if: github.event.inputs.confirmar == 'destruir'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    env:
+      AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS Academy
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Instalar Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Verificar backend remoto e inicializar
+        run: ./init-backend.sh
+
+      - name: terraform destroy
+        run: terraform destroy -input=false -auto-approve
+        env:
+          TF_VAR_my_ip_cidr: ${{ secrets.MY_IP_CIDR }}
+          TF_VAR_repo_url: https://github.com/${{ github.repository }}.git
+          TF_VAR_repo_branch: deploy
+          TF_VAR_azure_tenant_id: ${{ secrets.AZURE_TENANT_ID }}
+          TF_VAR_azure_backend_client_id: ${{ secrets.AZURE_BACKEND_CLIENT_ID }}
+          TF_VAR_azure_frontend_client_id: ${{ secrets.AZURE_FRONTEND_CLIENT_ID }}
+          TF_VAR_azure_issuer_uri: ${{ secrets.AZURE_ISSUER_URI }}
+          TF_VAR_azure_jwk_set_uri: ${{ secrets.AZURE_JWK_SET_URI }}
+          TF_VAR_azure_authority: ${{ secrets.AZURE_AUTHORITY }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_rabbitmq_password: ${{ secrets.RABBITMQ_PASSWORD }}
+          TF_VAR_rabbitmq_erlang_cookie: ${{ secrets.RABBITMQ_ERLANG_COOKIE }}
+          TF_VAR_enable_recovery_alarms: ${{ secrets.ENABLE_RECOVERY_ALARMS || 'true' }}
